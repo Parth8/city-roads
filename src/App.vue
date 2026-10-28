@@ -195,12 +195,12 @@ export default {
       getCanvas().style.visibility = 'hidden';
     },
 
-    toPNGFile(e) {
-      scene.saveToPNG(this.name)
+    toPNGFile() {
+      this.scene.saveToPNG(this.name)
     },
 
-    toSVGFile(e) { 
-      scene.saveToSVG(this.name)
+    toSVGFile() {
+      this.scene.saveToSVG(this.name)
     },
 
     updateLayers() {
