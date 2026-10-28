@@ -33,6 +33,12 @@ export default function request(url, options) {
     if (options.responseType) {
       req.responseType = options.responseType;
     }
+    if (options.timeout) {
+      // Without this a server that accepts the connection but never answers
+      // leaves the page spinning forever.
+      req.timeout = options.timeout;
+      req.addEventListener('timeout', transferTimedOut, false);
+    }
 
     if (options.headers) {
       Object.keys(options.headers).forEach(key => {
@@ -85,7 +91,17 @@ export default function request(url, options) {
     }
 
     function transferFailed() {
-      reject(`Failed to download ${url}`);
+      progress.offCancel(cancelDownload);
+      let err = new Error(`Failed to download ${url}`);
+      err.networkError = true;
+      reject(err);
+    }
+
+    function transferTimedOut() {
+      progress.offCancel(cancelDownload);
+      let err = new Error(`Timed out after ${Math.round(options.timeout / 1000)}s waiting for ${url}`);
+      err.timedOut = true;
+      reject(err);
     }
 
     function transferCanceled() {

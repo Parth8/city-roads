@@ -49,7 +49,7 @@ export default class Query {
     let parts = collectAllNominatimQueries(this.queryString);
 
     this.promise = runAllNominmantimQueries(parts)
-      .then(resolvedQueryString => postData(resolvedQueryString, this.progress))
+      .then(resolvedQueryString => postData(resolvedQueryString, this.progress, getDeclaredTimeout(resolvedQueryString)))
       .then(osmResponse => {
         if (!osmResponse || !osmResponse.elements) {
           let err = new Error('OpenStreetMap servers returned an invalid response. Please try again.');
@@ -128,6 +128,11 @@ function collectAllNominatimQueries(extendedQuery) {
   parts.push(extendedQuery);
 
   return parts;
+}
+
+function getDeclaredTimeout(queryString) {
+  let match = queryString.match(/\[timeout:(\d+)\]/);
+  return match ? Number.parseInt(match[1], 10) : undefined;
 }
 
 function wait(ms) {

@@ -38,7 +38,7 @@
   <div v-if='error' class='error message shadow'>
     <div v-if='isServerError(error)'>
       <div>OpenStreetMap servers are busy or temporarily unavailable.</div>
-      <div class='error-note'>We tried {{error.serversAttempted || 'multiple'}} servers but none responded in time. This usually resolves within a few minutes.</div>
+      <div class='error-note'>We tried {{error.serversAttempted || 'multiple'}} servers but none of them returned the data. This usually resolves within a few minutes.</div>
       <div class='error-actions'>
         <a href='#' @click.prevent="retry" class='retry-btn'>Retry</a>
       </div>
@@ -161,6 +161,12 @@ export default {
               this.suggestionsLoaded = true;
               this.suggestions = suggestions; 
           }
+        })
+        .catch(err => {
+          if (err && err.cancelled) return;
+          console.error(err);
+          this.loading = null;
+          this.error = err instanceof Error ? err : new Error('Could not reach the OpenStreetMap search service. Please try again.');
         });
     },
 
@@ -170,7 +176,8 @@ export default {
       return error.allServersFailed ||
              error.invalidResponse ||
              error.statusError ||
-             (error.message && error.message.includes('Failed to download'));
+             error.timedOut ||
+             error.networkError;
     },
 
     getBugReportURL(error) {
@@ -202,6 +209,8 @@ export default {
     retry() {
       if (this.lastSuggestion) {
         this.pickSuggestion(this.lastSuggestion);
+      } else {
+        this.onSubmit();
       }
     },
 
