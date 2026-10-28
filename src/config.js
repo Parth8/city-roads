@@ -2,6 +2,11 @@ import tinycolor from 'tinycolor2';
 
 export default {
   /**
+   * Where people report bugs and find the source code.
+   */
+  repoUrl: 'https://github.com/parth8/city-roads',
+
+  /**
    * This is our caching backend
    */
   // This used to work, but seems like GitHub no longer allows large website hosting:

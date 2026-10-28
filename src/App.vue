@@ -18,52 +18,54 @@
           </div>
         </div>
 
-        <h3>Export</h3>
+        <h3>Download</h3>
         <div class='row'>
-          <a href='#' @click.prevent='zazzleMugPrint()' class='col'>Onto a mug</a> 
-          <span class='col c-2'>
-            Print what you see onto a mug. <br/>Get a unique gift of your favorite city.
-          </span>
+          <div class='col'>Format</div>
+          <div class='col c-2'>
+            <select v-model='download.format' class='select'>
+              <option v-for='f in formats' :key='f.id' :value='f.id'>{{f.name}}</option>
+              <option value='svg'>SVG (vector)</option>
+            </select>
+          </div>
         </div>
-        <div class='preview-actions message' v-if='zazzleLink || generatingPreview'>
-            <div v-if='zazzleLink' class='padded popup-help'>
-              If your browser has blocked the new window, <br/>please <a :href='zazzleLink' target='_blank'>click here</a>
-              to open it.
-            </div>
-            <div v-if='generatingPreview' class='loading-container'>
-              <loading-icon></loading-icon>
-              Generating preview url...
-            </div>
+        <div class='row' v-if='download.format !== "svg"'>
+          <div class='col'>Border</div>
+          <div class='col c-2 border-options'>
+            <select v-model='download.border.style' class='select'>
+              <option v-for='b in borderStyles' :key='b.id' :value='b.id'>{{b.name}}</option>
+            </select>
+            <input v-if='download.border.style !== "none"' type='color' v-model='download.border.color' title='Border colour' aria-label='Border colour'>
+          </div>
+        </div>
+        <div class='row' v-if='download.format !== "svg" && download.border.style !== "none"'>
+          <div class='col'>Thickness</div>
+          <div class='col c-2'>
+            <input type='range' min='0.01' max='0.12' step='0.005' v-model.number='download.border.size' aria-label='Border thickness'>
+          </div>
+        </div>
+        <div class='row' v-if='download.format !== "svg" && download.border.style === "polaroid"'>
+          <div class='col'>Caption</div>
+          <div class='col c-2'>
+            <input type='text' class='text-input' v-model='download.border.caption' placeholder='Written on the bottom'>
+          </div>
         </div>
         <div class='row'>
-          <a href='#'  @click.prevent='toPNGFile' class='col'>As an image (.png)</a> 
-          <span class='col c-2'>
-            Save the current screen as a raster image.
-          </span>
-        </div>
-        
-        <div class='row'>
-          <a href='#'  @click.prevent='toSVGFile' class='col'>As a vector (.svg)</a> 
-          <span class='col c-2'>
-            Save the current screen as a vector image.
-          </span>
-        </div>
-        <div v-if='false' class='row'>
-          <a href='#' @click.prevent='toProtobuf' class='col'>To a .PBF file</a> 
-          <span class='col c-2'>
-            Save the current data as a protobuf message. For developer use only.
+          <a href='#' @click.prevent='downloadArtwork' class='col download-link'>{{downloading ? 'Preparing…' : 'Download'}}</a>
+          <span class='col c-2 note'>
+            Saves what you see on screen<span v-if='download.format !== "svg"'> at your screen's resolution</span>.
+            <span v-if='downloadError' class='error-text'>{{downloadError}}</span>
           </span>
         </div>
 
         <h3>About</h3>
         <div>
-          <p>This website was created by <a href='https://twitter.com/anvaka' target='_blank'>@anvaka</a>.
+          <p>This website was created by <a href='https://twitter.com/anvaka' target='_blank' rel='noopener'>@anvaka</a>.
           It downloads roads from OpenStreetMap and renders them with WebGL.
           </p>
           <p>
-           You can find the entire <a href='https://github.com/anvaka/city-roads'>source code here</a>. 
-           If you love this website you can also <a href='https://www.paypal.com/paypalme2/anvakos/3'>buy me a coffee</a> or 
-           <a href='https://www.patreon.com/anvaka'>support me on Patreon</a>, but you don't have to.
+           Based on <a href='https://github.com/anvaka/city-roads' target='_blank' rel='noopener'>city-roads</a> by Andrei Kashcha.
+           Source code of this version: <a :href='repoUrl' target='_blank' rel='noopener'>{{repoUrl}}</a>.
+           Try <a href='?mode=tracks'>race track posters</a> too.
           </p>
         </div>
       </div>
@@ -71,19 +73,18 @@
   </div>
 
   <editable-label v-if='placeFound' v-model='name' class='city-name' :printable='true' :style='{color: labelColorRGBA}' :overlay-manager='overlayManager'></editable-label>
-  <div v-if='placeFound' class='license printable can-drag' :style='{color: labelColorRGBA}'>data <a href='https://www.openstreetmap.org/about/' target="_blank" :style='{color: labelColorRGBA}'>© OpenStreetMap</a></div>
+  <div v-if='placeFound' class='license printable can-drag' :style='{color: labelColorRGBA}'>data <a href='https://www.openstreetmap.org/copyright' target="_blank" rel="noopener" :style='{color: labelColorRGBA}'>© OpenStreetMap</a></div>
 </template>
 
 <script>
 import FindPlace from './components/FindPlace.vue';
-import LoadingIcon from './components/LoadingIcon.vue';
 import EditableLabel from './components/EditableLabel.vue';
 import ColorPicker from './components/ColorPicker.vue';
 import createScene from './lib/createScene.js';
 import GridLayer from './lib/GridLayer.js';
-import generateZazzleLink from './lib/getZazzleLink.js';
 import appState from './lib/appState.js';
-import {getPrintableCanvas, getCanvas} from './lib/saveFile.js';
+import {getPrintableCanvas, getCanvas, toSVG} from './lib/saveFile.js';
+import {borderStyles, getSupportedFormats, getFormat, addBorder, canvasToBlob, downloadBlob} from './lib/artwork.js';
 import config from './config.js';
 import './lib/canvas2BlobPolyfill.js';
 import bus from './lib/bus.js';
@@ -102,7 +103,6 @@ export default {
   name: 'App',
   components: {
     FindPlace,
-    LoadingIcon,
     EditableLabel,
     ColorPicker
   },
@@ -110,8 +110,15 @@ export default {
     return {
       placeFound: false,
       name: '',
-      zazzleLink: null,
-      generatingPreview: false,
+      formats: getSupportedFormats(),
+      borderStyles,
+      download: {
+        format: 'png',
+        border: {style: 'none', color: '#ffffff', size: 0.04, caption: ''}
+      },
+      downloading: false,
+      downloadError: null,
+      repoUrl: config.repoUrl,
       showSettings: false,
       settingsOpen: false,
       labelColor: config.getLabelColor().toRgb(),
@@ -125,16 +132,13 @@ export default {
     }
   },
   created() {
-    bus.on('scene-transform', this.handleSceneTransform);
     bus.on('background-color', this.syncBackground);
     bus.on('line-color', this.syncLineColor);
     this.overlayManager = createOverlayManager();
   },
   beforeUnmount() {
-    debugger;
     this.overlayManager.dispose();
     this.dispose();
-    bus.off('scene-transform', this.handleSceneTransform);
     bus.off('background-color', this.syncBackground);
     bus.off('line-color', this.syncLineColor);
   },
@@ -147,9 +151,6 @@ export default {
     },
     toggleSettings() {
       this.showSettings = !this.showSettings;
-    },
-    handleSceneTransform() {
-      this.zazzleLink = null;
     },
     onGridLoaded(grid) {
       if (grid.isArea) {
@@ -186,7 +187,6 @@ export default {
 
       this.dispose();
       this.placeFound = false;
-      this.zazzleLink = null;
       this.showSettings = false;
       this.backgroundColor = config.getBackgroundColor().toRgb();
       this.labelColor = config.getLabelColor().toRgb();
@@ -195,12 +195,28 @@ export default {
       getCanvas().style.visibility = 'hidden';
     },
 
-    toPNGFile() {
-      this.scene.saveToPNG(this.name)
-    },
-
-    toSVGFile() {
-      this.scene.saveToSVG(this.name)
+    downloadArtwork() {
+      if (this.downloading) return;
+      let name = this.name || 'city-roads';
+      this.downloadError = null;
+      if (this.download.format === 'svg') {
+        toSVG(this.scene, {name});
+        return;
+      }
+      this.downloading = true;
+      let format = getFormat(this.download.format);
+      let border = {...this.download.border, caption: this.download.border.caption || this.name};
+      let fontReady = document.fonts ? document.fonts.load('40px "Caveat"').catch(() => {}) : Promise.resolve();
+      fontReady.then(() => getPrintableCanvas(this.scene))
+        .then(canvas => canvasToBlob(addBorder(canvas, border), format))
+        .then(blob => downloadBlob(blob, `${name}.${format.extension}`))
+        .catch(e => {
+          console.error(e);
+          this.downloadError = e.message;
+        })
+        .finally(() => {
+          this.downloading = false;
+        });
     },
 
     updateLayers() {
@@ -218,7 +234,6 @@ export default {
         }
         let layerColor = tinycolor.fromRatio(layer.color);
         newLayers.push(new ColorLayer(name, layerColor, newColor => {
-          this.zazzleLink = null;
           layer.color = toRatioColor(newColor);
           renderer.renderFrame();
           this.scene.fire('color-change', layer);
@@ -235,7 +250,6 @@ export default {
       function toRatioColor(c) {
         return {r: c.r/0xff, g: c.g/0xff, b: c.b/0xff, a: c.a}
       }
-      this.zazzleLink = null;
     },
 
     syncLineColor() {
@@ -249,33 +263,10 @@ export default {
     // TODO: I need two background methods?
     updateBackground() {
       this.setBackgroundColor(this.backgroundColor)
-      this.zazzleLink = null;
     },
     setBackgroundColor(c) {
       this.scene.background = c;
       document.body.style.backgroundColor = toRGBA(c);
-      this.zazzleLink = null;
-    },
-
-    zazzleMugPrint() {
-      if (this.zazzleLink) {
-        window.open(this.zazzleLink, '_blank');
-        recordOpenClick(this.zazzleLink);
-        return;
-      }
-
-      this.generatingPreview = true;
-      getPrintableCanvas(this.scene).then(printableCanvas => {
-        generateZazzleLink(printableCanvas).then(link => {
-          this.zazzleLink = link;
-          window.open(link, '_blank');
-          recordOpenClick(link);
-          this.generatingPreview = false;
-        }).catch(e => {
-          this.error = e;
-          this.generatingPreview = false;
-        });
-      });
     }
   }
 }
@@ -284,18 +275,58 @@ function toRGBA(c) {
     return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
 }
 
-function recordOpenClick(link) {
-  if (typeof gtag === 'undefined') return;
-
-  gtag('event', 'click', {
-    'event_category': 'Outbound Link',
-    'event_label': link
-  });
-}
 </script>
 
 <style lang='stylus'>
 @import('./vars.styl');
+
+.print-window {
+  .select, .text-input {
+    font: inherit;
+    font-size: 14px;
+    padding: 5px 8px;
+    border: 1px solid border-color;
+    border-radius: 6px;
+    background: white;
+    color: primary-text;
+    min-width: 0;
+  }
+  .text-input {
+    width: 100%;
+  }
+  input[type=range] {
+    width: 100%;
+    accent-color: highlight-color;
+  }
+  input[type=color] {
+    width: 34px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid border-color;
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+  }
+  .border-options {
+    gap: 8px;
+    align-items: center;
+  }
+  .row {
+    align-items: center;
+  }
+  .note {
+    display: block;
+    font-size: 13px;
+    color: secondary-color;
+  }
+  .error-text {
+    display: block;
+    color: #b00020;
+  }
+  .download-link {
+    font-weight: 600;
+  }
+}
 
 #app {
   margin: 8px;
