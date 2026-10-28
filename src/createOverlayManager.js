@@ -219,6 +219,3 @@ export default function createOverlayManager() {
   }
 }
 
-function renderResizeHandlers(el) {
-  el.getBoundingClientRect(el)
-}

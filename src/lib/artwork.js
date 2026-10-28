@@ -87,7 +87,7 @@ export function getSupportedFormats() {
   supported = imageFormats.filter(f => {
     try {
       return canvas.toDataURL(f.mime).startsWith('data:' + f.mime);
-    } catch (e) {
+    } catch {
       return false;
     }
   });

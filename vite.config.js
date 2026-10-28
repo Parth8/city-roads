@@ -2,7 +2,6 @@ import { fileURLToPath, URL } from 'url'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { visualizer } from 'rollup-plugin-visualizer'
 
 // Everything the site talks to. Anything else is blocked by the browser.
 const contentSecurityPolicy = [
@@ -32,7 +31,7 @@ function securityHeaders() {
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [vue(), securityHeaders(), visualizer()],
+  plugins: [vue(), securityHeaders()],
   // Relative asset paths, so the site works from any GitHub Pages sub path.
   base: './',
   define: {

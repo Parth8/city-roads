@@ -1,4 +1,3 @@
-// import protobufExport from './protobufExport.js';
 import svgExport from './svgExport.js';
 
 export function toSVG(scene, options) {
@@ -74,7 +73,7 @@ function escapeFileName(str) {
 function drawTextLabel(element, ctx) {
   if (!element) return Promise.resolve();
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     let dpr = window.devicePixelRatio || 1;
 
     if (element.element instanceof SVGSVGElement) {
@@ -142,16 +141,3 @@ function revokeLater(url) {
     window.URL.revokeObjectURL(url);
   }, 45000);
 }
-
-// function toProtobuf() {
-//   if (!lastGrid) return;
-
-//   let arrayBuffer = protobufExport(lastGrid);
-//   let blob = new Blob([arrayBuffer.buffer], {type: "application/octet-stream"});
-//   let url = window.URL.createObjectURL(blob);
-//   let a = document.createElement("a");
-//   a.href = url;
-//   a.download = lastGrid.id + '.pbf';
-//   a.click();
-//   revokeLater(url);
-// }

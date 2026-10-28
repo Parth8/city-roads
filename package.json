@@ -9,30 +9,32 @@
     "build": "vite build",
     "build:tracks": "node scripts/tracks/build-tracks.mjs",
     "tracks:sheet": "node scripts/tracks/contact-sheet.mjs > tracks.svg",
-    "lint": "eslint . --ext .vue,.js,.mjs --fix --ignore-path .gitignore",
-    "lint:check": "eslint . --ext .vue,.js,.mjs --ignore-path .gitignore",
+    "lint": "eslint . --fix",
+    "lint:check": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
-    "d3-geo": "^3.0.1",
+    "d3-geo": "^3.1.1",
     "d3-require": "^1.3.0",
-    "ngraph.events": "^1.2.1",
-    "pbf": "^3.2.1",
+    "ngraph.events": "^1.4.0",
+    "pbf": "^5.1.2",
     "query-state": "^4.3.0",
-    "tinycolor2": "^1.4.2",
+    "tinycolor2": "^1.6.0",
     "vue": "3.5",
-    "w-gl": "^0.21.0"
+    "w-gl": "^0.22.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@vitejs/plugin-vue": "^6.0.10",
-    "eslint": "^8.5.0",
-    "eslint-plugin-vue": "^9.33.0",
+    "eslint": "^10.13.0",
+    "eslint-plugin-vue": "^10.12.0",
     "flag-icons": "^7.6.0",
-    "rollup-plugin-visualizer": "^5.14.0",
+    "globals": "^17.13.0",
     "stylus": "^0.64.0",
-    "vite": "^7.3.7"
+    "vite": "^8.3.5"
   },
   "engines": {
     "node": ">=20.19"
-  }
+  },
+  "type": "module"
 }

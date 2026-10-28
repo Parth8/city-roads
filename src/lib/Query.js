@@ -115,7 +115,6 @@ function collectAllNominatimQueries(extendedQuery) {
   let geoTest = /{{geocode(.+?):(.+?)}}/;
   let match;
   let parts = [];
-  let lastIndex = 0;
   while ((match = extendedQuery.match(geoTest))) {
     parts.push(extendedQuery.substr(0, match.index));
     parts.push({

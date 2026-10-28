@@ -1,145 +1,70 @@
-
 <template>
-<div class='vue-colorpicker' @click='showPicker = true' v-click-outside='hide' >
-  <span class='vue-colorpicker-btn' :style='btnStyle' ref='triggerButton'></span>
-  <div class='vue-colorpicker-panel' v-show='showPicker' :style="{left: panelLeft, top: panelTop}">
-    <component :is='pickerType' :modelValue='colors' @update:modelValue='changeColor'></component>
-  </div>
-</div>
+<label class='color-picker' :title='title'>
+  <input type='color' :value='hex' @input='onColor($event.target.value)' :aria-label='title'>
+  <input type='range' min='0' max='1' step='0.01' :value='alpha' @input='onAlpha($event.target.value)' aria-label='Opacity' class='alpha'>
+</label>
 </template>
 
 <script>
-import tinycolor from 'tinycolor2'
-import Sketch from './vue3-color/Sketch.vue'
-import ClickOutside from './clickOutside.js'
+import tinycolor from 'tinycolor2';
 
+/**
+ * Colour with opacity, built on the browser's own colour input.
+ * v-model is an {r, g, b, a} object; `change` fires with the same object.
+ */
 export default {
-  name: 'vue-colorpicker',
-  components: {
-    'sketch-picker': Sketch,
-  },
-  directives: { ClickOutside },
+  name: 'ColorPicker',
   props: {
-    modelValue: {
-      type: Object,
-    },
+    modelValue: {type: Object},
+    title: {type: String, default: 'Colour'}
   },
   emits: ['update:modelValue', 'change'],
-  data () {
-    return {
-      showPicker: false,
-      colors: {
-        hex: '#FFFFFF',
-        a: 1
-      },
-      colorValue: '#FFFFFF',
-      panelLeft: '0px',
-      panelTop: '0px'
-    }
-  },
   computed: {
-    pickerType () {
-      return 'sketch-picker';
+    color() {
+      return tinycolor(this.modelValue || '#ffffff');
     },
-    isTransparent () {
-      return this.colors.a === 0;
+    hex() {
+      return this.color.toHexString();
     },
-    btnStyle () {
-      if (this.isTransparent) {
-        return {
-          background: '#eee',
-          backgroundImage: 'linear-gradient(45deg, rgba(0,0,0,.25) 25%, transparent 0, transparent 75%,rgba(0,0,0,.25)0), linear-gradient(45deg, rgba(0,0,0,.25)25%,transparent 0, transparent 75%,rgba(0,0,0,.25)0)',
-          backgroundPosition: '0 0, 11px 11px',
-          backgroundSize: '22px 22px'
-        }
-      }
-      let {r, g, b, a} = this.colorValue;
-      return {
-        background: `rgba(${r}, ${g}, ${b}, ${a})`
-      }
-    },
-  },
-  watch: {
-    modelValue(val, oldVal) {
-      if (val !== oldVal) {
-        this.updateColorObject(val);
-      }
-    },
-    showPicker(newVal) {
-      if (!newVal) return;
-
-      const PICKER_WIDTH = 220;
-      const PANEL_HEIGHT = 320;
-      let triggerRect = this.$refs.triggerButton.getBoundingClientRect();
-      let desiredLeft = triggerRect.x;
-      let desiredTop = triggerRect.bottom;
-      if (triggerRect.y + PANEL_HEIGHT > window.innerHeight) {
-        desiredTop = Math.max(0, window.innerHeight - PANEL_HEIGHT);
-        desiredLeft += 36; // so that the selector button is still visible;
-      }
-      if (desiredLeft + PICKER_WIDTH > window.innerWidth) {
-        desiredLeft = Math.max(0, window.innerWidth - PICKER_WIDTH);
-      } 
-      this.panelLeft = desiredLeft + 'px';
-      this.panelTop = desiredTop + 'px';
+    alpha() {
+      return this.color.getAlpha();
     }
   },
-
   methods: {
-    hide () {
-      this.showPicker = false;
+    onColor(hex) {
+      let rgba = tinycolor(hex).setAlpha(this.alpha).toRgb();
+      this.emit(rgba);
     },
-    changeColor (data) {
-      this.colorValue = data.rgba;
-      this.$emit('update:modelValue', this.colorValue);
-      this.$emit('change', this.colorValue);
+    onAlpha(alpha) {
+      this.emit(this.color.clone().setAlpha(Number(alpha)).toRgb());
     },
-    updateColorObject (color) {
-      if (!color) return
-      const colorObj = tinycolor(color);
-      if (!color || color === 'transparent') {
-        this.colors = {
-          hex: '#FFFFFF',
-          hsl: { h: 0, s: 0, l: 1, a: 0 },
-          hsv: { h: 0, s: 0, v: 1, a: 0 },
-          rgba: { r: 255, g: 255, b: 255, a: 0 },
-          a: 0
-        };
-      } else {
-        this.colors = {
-          hex: colorObj.toHexString(),
-          hsl: colorObj.toHsl(),
-          hsv: colorObj.toHsv(),
-          rgba: colorObj.toRgb(),
-          a: colorObj.getAlpha()
-        };
-      }
-      this.colorValue = this.colors.rgba;
+    emit(rgba) {
+      this.$emit('update:modelValue', rgba);
+      this.$emit('change', rgba);
     }
-  },
-  mounted () {
-    this.updateColorObject(this.modelValue);
   }
 }
 </script>
 
 <style lang="stylus" scoped>
-.vue-colorpicker {
-  display: inline-block;
-  box-sizing: border-box;
-  font-size: 0;
+.color-picker {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
   cursor: pointer;
-  &-btn {
-    display: inline-block;
-    width: 30px;
-    height: 22px;
-    border: 1px solid #666;
-    background: #FFFFFF;
+  input[type=color] {
+    width: 34px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
   }
-
-  .vue-colorpicker-panel {
-    position: absolute;
-    z-index: 1;
+  .alpha {
+    width: 48px;
+    height: 12px;
   }
 }
 </style>

@@ -3,7 +3,7 @@
   <div v-if='boxInTheMiddle'>
     <h3 class='site-header'>city roads</h3>
     <p class='description'>This website renders every single road within a city</p>
-    <p class='description tracks-link'><a href='?mode=tracks'>New: race track posters →</a></p>
+    <p class='description tracks-link'><a href='./'>Make posters &amp; wallpapers in the studio →</a></p>
   </div>
   <form v-on:submit.prevent="onSubmit" class='search-box'>
       <input class='query-input' v-model='enteredInput' type='text' placeholder='Enter a city name to start' ref='input'>
@@ -81,7 +81,7 @@ import queryState from '../lib/appState.js';
 import config from '../config.js';
 import Progress from '../lib/Progress.js'
 import LoadOptions from '../lib/LoadOptions.js';
-import Pbf from 'pbf';
+import {PbfReader} from 'pbf';
 import {place} from '../proto/place.js';
 
 const FIND_TEXT = 'Find City Bounds';
@@ -251,7 +251,7 @@ export default {
         var byteArray = new Uint8Array(arrayBuffer);
         return byteArray;
       }).then(byteArray => {
-        var pbf = new Pbf(byteArray);
+        var pbf = new PbfReader(byteArray);
         var obj = place.read(pbf);
         let grid = Grid.fromPBF(obj)
         this.$emit('loaded', grid);

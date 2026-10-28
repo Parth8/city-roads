@@ -65,7 +65,7 @@
           <p>
            Based on <a href='https://github.com/anvaka/city-roads' target='_blank' rel='noopener'>city-roads</a> by Andrei Kashcha.
            Source code of this version: <a :href='repoUrl' target='_blank' rel='noopener'>{{repoUrl}}</a>.
-           Try <a href='?mode=tracks'>race track posters</a> too.
+           Try the <a href='./'>poster studio</a> too.
           </p>
         </div>
       </div>
@@ -86,7 +86,6 @@ import appState from './lib/appState.js';
 import {getPrintableCanvas, getCanvas, toSVG} from './lib/saveFile.js';
 import {borderStyles, getSupportedFormats, getFormat, addBorder, canvasToBlob, downloadBlob} from './lib/artwork.js';
 import config from './config.js';
-import './lib/canvas2BlobPolyfill.js';
 import bus from './lib/bus.js';
 import createOverlayManager from './createOverlayManager.js';
 import tinycolor from 'tinycolor2';

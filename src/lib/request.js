@@ -4,7 +4,6 @@ export default function request(url, options) {
   if (!options) options = {};
   let req;
   let progress = options.progress || new Progress();
-  let isCancelled = false;
   if (progress.on) {
     progress.onCancel(cancelDownload);
   }
@@ -12,7 +11,6 @@ export default function request(url, options) {
   return new Promise(download);
 
   function cancelDownload() {
-    isCancelled = true;
     if (req) {
       req.abort();
     }
