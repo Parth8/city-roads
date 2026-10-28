@@ -17,6 +17,40 @@ The name resolution is done by [nominatim](https://nominatim.openstreetmap.org/)
 into the search box it returns list of area ids. I check for the area id in my list of cached cities first,
 and fallback to overpass if area is not present in cache.
 
+## Race track posters
+
+Open the site with `?mode=tracks` (or follow the "race track posters" link on the start page) to make a
+print-ready poster of a race circuit: the track drawn bold, with the streets around it faded into the
+background.
+
+* 96 circuits from F1, MotoGP, WEC, IMSA, IndyCar, NASCAR, Supercars, DTM, Super GT, WSBK, BTCC and the Isle of Man TT,
+  plus historic venues. Filter by series or search by name, city or country.
+* Eight styles (Carbon, Rosso, Paddock, Midnight, Heritage, Paper, Blueprint, Gulf) and three layouts
+  (minimal, framed map, stats bar). Every colour, width, text and stat can be edited.
+* Drag to move the map, scroll or pinch to zoom, rotate it, show or hide streets, buildings, the pit lane,
+  the start/finish flag, a north arrow and the country flag.
+* Export a PNG for any paper size from A4 to 24×36 in at 150 or 300 dpi, or an SVG with the fonts embedded.
+
+Circuit layouts are extracted from OpenStreetMap ahead of time and ship with the site, so a poster
+appears instantly. Only the surrounding streets are downloaded from Overpass when you open a circuit;
+if that fails, the poster still works without them.
+
+### Adding a circuit
+
+1. Add an entry to [`scripts/tracks/catalog.mjs`](scripts/tracks/catalog.mjs) with a rough coordinate,
+   and the length if you know it (it is used to pick the right layout).
+2. Run `npm run build:tracks -- <id>` (behind a proxy: `NODE_USE_ENV_PROXY=1 npm run build:tracks -- <id>`).
+   It finds the circuit's `type=circuit` relation in OpenStreetMap, or the closed loop of `highway=raceway`
+   ways closest to the expected length, and writes `src/track/data/tracks/<id>.json`.
+3. Run `npm run tracks:sheet` and open `tracks.svg` to check that the right layout was picked.
+
+If the layout looks wrong, the fix usually belongs in OpenStreetMap; the catalog also lets you pin a relation
+(`osmRelation`), prefer a layout by name (`layout`) or leave out other layouts (`exclude`).
+
+Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), available under the ODbL.
+Posters show this credit by default; please keep it when you share or sell prints. Country flags come from
+[flag-icons](https://github.com/lipis/flag-icons) (MIT).
+
 ## Scripting
 
 Behind simple UI software engineers would also find scripting capabilities. You can develop programs on top
@@ -51,11 +85,11 @@ npm install
 # serve with hot reload at localhost:8080
 npm run dev
 
-# build for production with minification
+# build for production with minification (writes stats.html with a bundle report)
 npm run build
 
-# build for production and view the bundle analyzer report
-npm run build --report
+# re-extract circuit layouts from OpenStreetMap (see "Adding a circuit")
+npm run build:tracks
 ```
 
 ## License

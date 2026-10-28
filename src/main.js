@@ -3,8 +3,6 @@
 import {createApp} from 'vue';
 import {require as d3Require} from 'd3-require';
 import {isWebGLEnabled} from 'w-gl';
-import App from './App.vue';
-import NoWebGL from './NoWebGL.vue';
 import Query from './lib/Query.js';
 
 // const wgl = require('w-gl');
@@ -15,10 +13,16 @@ window.addEventListener('error', logError);
 window.requireModule = d3Require;
 window.Query = Query;
 
-if (isWebGLEnabled(document.querySelector('#canvas'))) {
-  createApp(App).mount('#host');
+let params = new URLSearchParams(window.location.search);
+if (params.get('mode') === 'tracks' || params.has('track')) {
+  // Race track posters are drawn with a 2D canvas and live in their own chunk.
+  document.querySelector('#canvas').style.display = 'none';
+  import('./track/TrackApp.vue').then(module => createApp(module.default).mount('#host'));
+} else if (isWebGLEnabled(document.querySelector('#canvas'))) {
+  // Loaded on demand so the city styles do not leak into the poster editor.
+  import('./App.vue').then(module => createApp(module.default).mount('#host'));
 } else {
-  createApp(NoWebGL).mount('#host');
+  import('./NoWebGL.vue').then(module => createApp(module.default).mount('#host'));
 }
 
 function logError(e) {

@@ -3,6 +3,7 @@
   <div v-if='boxInTheMiddle'>
     <h3 class='site-header'>city roads</h3>
     <p class='description'>This website renders every single road within a city</p>
+    <p class='description tracks-link'><a href='?mode=tracks'>New: race track posters →</a></p>
   </div>
   <form v-on:submit.prevent="onSubmit" class='search-box'>
       <input class='query-input' v-model='enteredInput' type='text' placeholder='Enter a city name to start' ref='input'>
@@ -506,6 +507,14 @@ input {
   padding: 8px;
   margin: 0;
   text-align: center;
+}
+
+.tracks-link {
+  padding-top: 0;
+  a {
+    color: highlight-color;
+    text-decoration: none;
+  }
 }
 
 .cancel-request {
