@@ -1,16 +1,42 @@
-# city-roads
+# Map Poster Studio (city-roads)
 
-Render every single road in any city at once, or make a poster or wallpaper of a race circuit:
+Make prints, wallpapers and social posts from any map: race circuits, cities, the street you grew up on.
 https://parth8.github.io/city-roads/
 
-This is a fork of [anvaka/city-roads](https://github.com/anvaka/city-roads) by Andrei Kashcha. It adds race
-track posters and wallpapers, borders and polaroid frames, PNG/JPEG/WebP/SVG downloads, and fixes for
-downloads that used to time out. It has no analytics, ads or shop: everything runs in your browser and
-the only servers it talks to are OpenStreetMap's (plus Google Fonts and the original author's city cache).
+This is a fork of [anvaka/city-roads](https://github.com/anvaka/city-roads) by Andrei Kashcha, whose
+WebGL "every road in a city" viewer still lives here as [classic mode](https://parth8.github.io/city-roads/?mode=classic).
+It has no analytics, ads or shop: everything runs in your browser, and the only servers it talks to are
+OpenStreetMap's, Google Fonts, and the original author's city cache.
 
-![demo](https://i.imgur.com/6bFhX3e.png)
+## The studio
 
-## How it is made?
+* **Subjects:** 96 race circuits (F1, MotoGP, WEC, IMSA, IndyCar, NASCAR, Supercars, DTM, Super GT, WSBK,
+  BTCC, Isle of Man TT and historic venues), or any place you can search for.
+* **20 looks** to start from, previewed live on your map, and a "Surprise me" button.
+* **Layers:** circuit, pit lane, start/finish flag, corner names (from OpenStreetMap), streets, buildings,
+  water, parks and woods, railways, and every piece of text. Switch off anything you don't want.
+* **Colours and gradients** for every part (background, track, streets, buildings, water, parks, title…),
+  with 18 gradient palettes you can apply to one part or to everything.
+* **Effects:** neon glow, emboss and deboss (raised or pressed-in, like letterpress), fade with distance,
+  and a focus blur that blurs everything except your selection.
+* **Select:** tap streets or the circuit (or search them by name) to highlight them, blur the rest, or keep
+  only the selection to extract a single street or track.
+* **Any size:** print sizes from A6 to A0, B sizes, US paper and frame sizes, posters up to 70×100 cm;
+  phones, tablets, laptops, 4K/5K/8K, 21:9 and 32:9 ultrawide, watches; Instagram, stories, X, LinkedIn,
+  YouTube and more; or any custom size in px, mm, cm or inches. Every size works portrait or landscape.
+* **Frames:** none, a border in any colour, or a polaroid frame with a handwritten caption.
+* **Downloads:** PNG, JPEG, WebP, AVIF (where the browser supports it) and SVG with fonts embedded, with
+  or without the border. Everything is drawn as vectors, so any size stays sharp. Browsers cannot encode
+  HEIC/HEIF, so it is not offered.
+* Drag to move, pinch or scroll to zoom, twist with two fingers (or Shift+scroll, or the dial) to rotate.
+  Undo and redo (Ctrl/Cmd+Z), and your design is remembered in your browser.
+* Works on phones (bottom tabs and sheets), tablets and desktops.
+
+Circuit layouts are extracted from OpenStreetMap ahead of time and ship with the site, so they appear
+instantly; streets, water and buildings are downloaded from Overpass when you open a subject. Very large
+places get fewer details (main roads only above ~2,500 km²) to stay fast.
+
+## Classic mode: how it is made
 
 The data is fetched from OpenStreetMap using [overpass API](http://overpass-turbo.eu/). While that API
 is free (as long as you follow ODbL licenses), it can be rate-limited and sometimes it is slow. After all
@@ -23,36 +49,13 @@ The name resolution is done by [nominatim](https://nominatim.openstreetmap.org/)
 into the search box it returns list of area ids. I check for the area id in my list of cached cities first,
 and fallback to overpass if area is not present in cache.
 
-## Race track posters
-
-Open the site with `?mode=tracks` (or follow the "race track posters" link on the start page) to make a
-print-ready poster of a race circuit: the track drawn bold, with the streets around it faded into the
-background.
-
-* 96 circuits from F1, MotoGP, WEC, IMSA, IndyCar, NASCAR, Supercars, DTM, Super GT, WSBK, BTCC and the Isle of Man TT,
-  plus historic venues. Filter by series or search by name, city or country.
-* Eight styles (Carbon, Rosso, Paddock, Midnight, Heritage, Paper, Blueprint, Gulf) and three layouts
-  (minimal, framed map, stats bar). Every colour, width, text and stat can be edited.
-* Drag to move the map, scroll or pinch to zoom, rotate it, show or hide streets, buildings, the pit lane,
-  the start/finish flag, a north arrow and the country flag.
-* Print sizes from A4 to 24×36 in at 150 or 300 dpi, or wallpaper sizes for phones, tablets, 16:9, 16:10,
-  21:9 ultrawide and 32:9 super-ultrawide screens (or any custom pixel size).
-* Optional white (or any colour) border, or a polaroid frame with a thicker bottom and a handwritten caption.
-* Neon styles (Neon, Synthwave, Acid, Ice) with a glow around the track, and gradient backgrounds.
-* Download as PNG, JPEG, WebP, AVIF (where the browser supports it) or SVG with the fonts embedded.
-  Browsers cannot encode HEIC/HEIF, so it is not offered.
-
-Circuit layouts are extracted from OpenStreetMap ahead of time and ship with the site, so a poster
-appears instantly. Only the surrounding streets are downloaded from Overpass when you open a circuit;
-if that fails, the poster still works without them.
-
-### Adding a circuit
+## Adding a circuit
 
 1. Add an entry to [`scripts/tracks/catalog.mjs`](scripts/tracks/catalog.mjs) with a rough coordinate,
    and the length if you know it (it is used to pick the right layout).
 2. Run `npm run build:tracks -- <id>` (behind a proxy: `NODE_USE_ENV_PROXY=1 npm run build:tracks -- <id>`).
    It finds the circuit's `type=circuit` relation in OpenStreetMap, or the closed loop of `highway=raceway`
-   ways closest to the expected length, and writes `src/track/data/tracks/<id>.json`.
+   ways closest to the expected length, and writes `src/studio/data/tracks/<id>.json` (including corner names).
 3. Run `npm run tracks:sheet` and open `tracks.svg` to check that the right layout was picked.
 
 If the layout looks wrong, the fix usually belongs in OpenStreetMap; the catalog also lets you pin a relation
@@ -64,7 +67,7 @@ Posters show this credit by default; please keep it when you share or sell print
 
 ## Scripting
 
-Behind simple UI software engineers would also find scripting capabilities. You can develop programs on top
+Classic mode (`?mode=classic`) has scripting capabilities. You can develop programs on top
 of the city-roads. A few examples are available in [city-script](https://github.com/anvaka/city-script). Scene
 API is documented here: https://github.com/anvaka/city-roads/blob/main/API.md
 
@@ -100,7 +103,7 @@ npm install
 # serve with hot reload at localhost:8080
 npm run dev
 
-# build for production with minification (writes stats.html with a bundle report)
+# build for production
 npm run build
 
 # re-extract circuit layouts from OpenStreetMap (see "Adding a circuit")

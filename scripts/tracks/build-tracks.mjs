@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Extracts circuit layouts from OpenStreetMap and writes them to src/track/data.
+ * Extracts circuit layouts from OpenStreetMap and writes them to src/studio/data.
  *
  *   node scripts/tracks/build-tracks.mjs            # every circuit in catalog.mjs
  *   node scripts/tracks/build-tracks.mjs monaco spa # only these ids
@@ -22,7 +22,7 @@ import {fileURLToPath} from 'url';
 import catalog from './catalog.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const outDir = path.join(here, '..', '..', 'src', 'track', 'data');
+const outDir = path.join(here, '..', '..', 'src', 'studio', 'data');
 const tracksDir = path.join(outDir, 'tracks');
 const USER_AGENT = 'city-roads track builder (https://github.com/anvaka/city-roads)';
 const OSM_API = 'https://api.openstreetmap.org/api/0.6';
@@ -260,7 +260,7 @@ async function trackFromRelation(entry, relationId, elements) {
     source: 'relation ' + relationId,
     osmName: relation.tags.name,
     osm: {type: 'relation', id: relationId},
-    trackLines, pitLines: mergeWays(pitWays, false), nodes, start, oneway
+    trackLines, pitLines: mergeWays(pitWays, false), nodes, start, oneway, ways: trackWays
   });
   if (looksRight(candidate, entry)) return candidate;
 
@@ -311,14 +311,15 @@ async function trackFromRaceways(entry) {
       pitLines: mergeWays(pits, false),
       nodes,
       start,
-      oneway: loop.oneway
+      oneway: loop.oneway,
+      ways: trackWays
     });
   }
   throw new Error('no closed loop of raceways around the circuit');
 }
 
 function makeTrack(args) {
-  let {entry, source, osmName, osm, trackLines, pitLines, nodes, start, oneway} = args;
+  let {entry, source, osmName, osm, trackLines, pitLines, nodes, start, oneway, ways} = args;
   let lines = closeGaps(trackLines.map(ids => toCoordinates(ids, nodes)).filter(x => x.length > 1));
   let pit = pitLines.map(ids => toCoordinates(ids, nodes)).filter(x => x.length > 1);
   let lengthKm = lines.reduce((total, line) => total + polylineLength(line), 0);
@@ -335,12 +336,54 @@ function makeTrack(args) {
     bbox: bbox.map(x => round(x, 6)),
     start: start ? [round(start.lon, 6), round(start.lat, 6)] : null,
     lines: lines.map(roundLine),
-    pit: pit.map(roundLine)
+    pit: pit.map(roundLine),
+    corners: cornerLabels(ways || [], new Set(trackLines.flat()), nodes, [entry.name, entry.title, osmName])
   };
   // Not written to disk, used while choosing between candidates.
   Object.defineProperty(track, 'closed', {value: closed, enumerable: false});
   Object.defineProperty(track, 'args', {value: args, enumerable: false});
   return track;
+}
+
+// Way names that describe the whole circuit rather than a corner or straight.
+const NOT_A_CORNER = /circuit|circuito|raceway|speedway|autodrom|autódromo|motorsport|grand prix|race ?track|international|\bring\b|racecourse|course$/i;
+
+/**
+ * Corner and straight names, from the names mappers gave to pieces of the
+ * track (e.g. "Copse", "Eau Rouge"). One label per name, at the middle of
+ * its longest piece.
+ */
+function cornerLabels(ways, onTrack, nodes, circuitNames) {
+  let skip = new Set(circuitNames.filter(Boolean).map(n => n.toLowerCase()));
+  let best = new Map();
+  for (let way of ways) {
+    let name = way.tags && way.tags.name;
+    if (!name || skip.has(name.toLowerCase()) || NOT_A_CORNER.test(name) || isPit(way.tags)) continue;
+    let ids = way.nodes.filter(id => onTrack.has(id) && nodes.has(id));
+    if (ids.length < 2) continue;
+    let coords = toCoordinates(ids, nodes);
+    let length = polylineLength(coords);
+    let current = best.get(name);
+    if (current && current.length >= length) continue;
+    best.set(name, {length, point: pointAlong(coords, length / 2)});
+  }
+  return Array.from(best.entries())
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 40)
+    .map(([name, {point}]) => ({name, lon: round(point[0], 6), lat: round(point[1], 6)}));
+}
+
+function pointAlong(coords, distanceKm) {
+  let travelled = 0;
+  for (let i = 1; i < coords.length; ++i) {
+    let step = gap(coords[i - 1], coords[i]);
+    if (travelled + step >= distanceKm) {
+      let t = step ? (distanceKm - travelled) / step : 0;
+      return [coords[i - 1][0] + (coords[i][0] - coords[i - 1][0]) * t, coords[i - 1][1] + (coords[i][1] - coords[i - 1][1]) * t];
+    }
+    travelled += step;
+  }
+  return coords[coords.length - 1];
 }
 
 /**

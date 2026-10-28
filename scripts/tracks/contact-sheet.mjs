@@ -10,7 +10,7 @@ import path from 'path';
 import {fileURLToPath} from 'url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(here, '..', '..', 'src', 'track', 'data');
+const dataDir = path.join(here, '..', '..', 'src', 'studio', 'data');
 const index = JSON.parse(fs.readFileSync(path.join(dataDir, 'index.json'), 'utf8'));
 const only = new Set(process.argv.slice(2));
 const cell = Number(process.env.CELL) || 220, cols = Number(process.env.COLS) || 6;
