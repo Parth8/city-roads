@@ -78,7 +78,8 @@ function subjectFromUrl() {
 
   position: fixed;
   inset: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: var(--paper);
   color: var(--ink);
   font-family: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;

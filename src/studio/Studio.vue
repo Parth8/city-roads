@@ -46,6 +46,14 @@
           @dblclick='onDoubleClick'></canvas>
       </div>
       <transition name='fade'>
+        <div v-if='streetsStatus' class='data-status' :class='{error: streetsError}' role='status'>
+          <span v-if='loadingStreets' class='spinner' aria-hidden='true'></span>
+          <span>{{streetsStatus}}</span>
+          <button v-if='loadingStreets' type='button' @click='cancelStreets'>Cancel</button>
+          <button v-if='streetsError' type='button' class='retry' @click='loadStreets'>Retry</button>
+        </div>
+      </transition>
+      <transition name='fade'>
         <div v-if='toast' class='toast' role='status'>{{toast}}</div>
       </transition>
     </div>
@@ -177,6 +185,7 @@ export default {
       loadingStreets: false,
       streetsStatusText: '',
       streetsError: null,
+      streetsCancelled: false,
       streetNames: [],
       detail: 'full',
       loadError: null,
@@ -198,6 +207,17 @@ export default {
     },
     isTrack() {
       return this.subjectRef.kind === 'track';
+    },
+    streetsStatus() {
+      if (this.loadingStreets) return this.streetsStatusText;
+      if (this.streetsError) {
+        let e = this.streetsError;
+        let code = e.statusError ? ` (${e.statusError})` : '';
+        if (e.queryTooLarge) return 'This area is too large for OpenStreetMap to send in one go. Try a smaller place.';
+        return `Couldn't load the streets: OpenStreetMap servers are busy${code}.`;
+      }
+      if (this.streetsCancelled) return 'Streets not loaded.';
+      return '';
     },
     holderStyle() {
       return {width: this.previewSize.width + 'px', height: this.previewSize.height + 'px'};
@@ -321,12 +341,13 @@ export default {
       this.cancelStreets();
       this.loadingStreets = true;
       this.streetsError = null;
+      this.streetsCancelled = false;
       let progress = new Progress(status => {
-        if (status.loaded < 0) this.streetsStatusText = 'OpenStreetMap is busy, trying another server…';
-        else this.streetsStatusText = `Downloading map data… ${formatBytes(status.loaded)}`;
+        if (status.loaded < 0) this.streetsStatusText = `OpenStreetMap is busy, trying again (${status.attempt} of ${status.of})…`;
+        else this.streetsStatusText = `Downloading streets… ${formatBytes(status.loaded)}`;
       });
       this.progress = progress;
-      this.streetsStatusText = 'Downloading streets, water and buildings…';
+      this.streetsStatusText = 'Loading streets, water and buildings…';
       let bbox = featuresBBox({kind: this.subjectRef.kind, bbox: this.subjectBBox});
       loadFeatures(this.subjectKey(), bbox, progress).then(raw => {
         if (progress.isCancelled) return;
@@ -348,6 +369,7 @@ export default {
       if (this.progress) {
         this.progress.cancel();
         this.progress = null;
+        if (this.loadingStreets && !this.streetsLoaded) this.streetsCancelled = true;
       }
       this.loadingStreets = false;
     },
