@@ -1,3 +1,5 @@
+import {drawBorder} from '../../lib/artwork.js';
+
 /**
  * Draws a circuit poster onto a 2D canvas context (or onto SvgContext, which
  * mimics one). Everything is laid out in poster units: the poster is always
@@ -7,12 +9,41 @@ export const POSTER_WIDTH = 1000;
 
 const FADE_BUCKETS = 8;
 
+/**
+ * Draws the whole poster: the optional border (plain or polaroid), and the
+ * artwork inside it. Returns where the map ended up, in poster units, so the
+ * editor can turn pointer movements into panning.
+ */
 export default function renderPoster(ctx, poster) {
+  let {width, height} = poster;
+  ctx.save();
+  let inner = drawBorder(ctx, poster.border, width, height);
+  // The artwork is always laid out 1000 units wide; scale it into the space the border leaves.
+  let k = inner.w / POSTER_WIDTH;
+  ctx.translate(inner.x, inner.y);
+  ctx.scale(k, k);
+  let mapInfo = renderArtwork(ctx, {...poster, width: POSTER_WIDTH, height: inner.h / k});
+  ctx.restore();
+  let r = mapInfo.rect;
+  return {...mapInfo, rect: {x: inner.x + r.x * k, y: inner.y + r.y * k, w: r.w * k, h: r.h * k}};
+}
+
+function renderArtwork(ctx, poster) {
   let {width, height, theme} = poster;
   let layout = getLayout(poster);
 
   ctx.save();
-  ctx.fillStyle = theme.background;
+  ctx.beginPath();
+  ctx.rect(0, 0, width, height);
+  ctx.clip();
+  if (theme.background2) {
+    let gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, theme.background);
+    gradient.addColorStop(1, theme.background2);
+    ctx.fillStyle = gradient;
+  } else {
+    ctx.fillStyle = theme.background;
+  }
   ctx.fillRect(0, 0, width, height);
 
   let mapInfo = drawMap(ctx, poster, layout.map);
@@ -29,6 +60,7 @@ function getLayout(poster) {
   let compact = H < W * 1.05; // square and landscape posters have less room for text
   if (poster.layout === 'inset') return insetLayout(poster, W, H, compact);
   if (poster.layout === 'data') return dataLayout(poster, W, H, compact);
+  if (poster.layout === 'wallpaper') return wallpaperLayout(poster, W, H);
   return minimalLayout(poster, W, H, compact);
 }
 
@@ -81,6 +113,36 @@ function minimalLayout(poster, W, H, compact) {
         drawFlag(ctx, poster.flag, W / 2, y, 30);
       }
       drawAttribution(ctx, poster, W / 2, H - 26, 'center');
+    }
+  };
+}
+
+/**
+ * Full-bleed map for screens. Text is optional and kept small, sized from the
+ * shorter side so it reads the same on a phone and on an ultrawide monitor.
+ */
+function wallpaperLayout(poster, W, H) {
+  let {theme, text, options} = poster;
+  let map = {x: 0, y: 0, w: W, h: H};
+  let unit = Math.min(W, H) / 1000;
+  let label = options.wallpaperLabel || 'none';
+
+  return {
+    map,
+    decorate(ctx) {
+      if (label === 'none') return;
+      let title = transformTitle(text.title, options);
+      let margin = 60 * unit;
+      let titleSize = 46 * unit;
+      let subtitleSize = 20 * unit;
+      let align = label === 'corner' ? 'right' : 'center';
+      let x = label === 'corner' ? W - margin : W / 2;
+      let y = H - margin - (text.tagline ? subtitleSize * 1.8 : 0);
+      let size = fitSize(ctx, title, titleFont(theme, titleSize), W - 2 * margin);
+      drawText(ctx, title, x, y, {...titleFont(theme, size), align, color: theme.text});
+      if (text.tagline) {
+        drawText(ctx, text.tagline, x, y + subtitleSize * 1.8, {...bodyFont(theme, subtitleSize, 500), spacing: 0.08, align, color: theme.muted});
+      }
     }
   };
 }
@@ -195,10 +257,18 @@ function drawMap(ctx, poster, rect) {
     strokeLines(ctx, track.pit, transform, theme.track, Math.max(trackWidth * 0.32, 1.2));
     ctx.restore();
   }
+  if (theme.glow && theme.glowStrength > 0) drawGlow(ctx, track.lines, transform, theme.glow, trackWidth, theme.glowStrength);
   if (theme.trackCasing) {
     strokeLines(ctx, track.lines, transform, theme.trackCasing, trackWidth + Math.max(2.5, trackWidth * 0.35));
   }
   strokeLines(ctx, track.lines, transform, theme.track, trackWidth);
+  if (theme.glow && theme.glowStrength > 0 && theme.trackCore) {
+    // A bright core makes the line read as a lit neon tube.
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    strokeLines(ctx, track.lines, transform, theme.trackCore, Math.max(trackWidth * 0.32, 1));
+    ctx.restore();
+  }
 
   if (options.showStart && track.start) drawStartLine(ctx, track, transform, trackWidth, theme);
   ctx.restore();
@@ -308,11 +378,11 @@ function drawBuildings(ctx, buildings, transform, rect, fade, theme, options) {
     for (let b of group) tracePoints(ctx, b.pts, transform, true);
     if (theme.buildings === 'fill') {
       ctx.globalAlpha = alpha * 0.45;
-      ctx.fillStyle = theme.streets;
+      ctx.fillStyle = theme.buildingColor || theme.streets;
       ctx.fill();
     } else {
       ctx.globalAlpha = alpha * 0.55;
-      ctx.strokeStyle = theme.streets;
+      ctx.strokeStyle = theme.buildingColor || theme.streets;
       ctx.lineWidth = 0.5 * options.streetWidth;
       ctx.stroke();
     }
@@ -340,6 +410,20 @@ function strokeLines(ctx, lines, transform, color, width) {
     for (let i = 1; i < line.length; ++i) ctx.lineTo(transform.x(line[i][0], line[i][1]), transform.y(line[i][0], line[i][1]));
   }
   ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Soft light around the track: wide, faint strokes stacked under it. Works the
+ * same on canvas and in SVG, unlike blur filters.
+ */
+function drawGlow(ctx, lines, transform, color, trackWidth, strength) {
+  let layers = 7;
+  ctx.save();
+  for (let i = layers; i >= 1; --i) {
+    ctx.globalAlpha = 0.06 + 0.05 * strength;
+    strokeLines(ctx, lines, transform, color, trackWidth + i * trackWidth * 0.9 * strength);
+  }
   ctx.restore();
 }
 

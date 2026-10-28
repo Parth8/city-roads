@@ -1,6 +1,12 @@
 # city-roads
 
-Render every single road in any city at once: https://anvaka.github.io/city-roads/
+Render every single road in any city at once, or make a poster or wallpaper of a race circuit:
+https://parth8.github.io/city-roads/
+
+This is a fork of [anvaka/city-roads](https://github.com/anvaka/city-roads) by Andrei Kashcha. It adds race
+track posters and wallpapers, borders and polaroid frames, PNG/JPEG/WebP/SVG downloads, and fixes for
+downloads that used to time out. It has no analytics, ads or shop: everything runs in your browser and
+the only servers it talks to are OpenStreetMap's (plus Google Fonts and the original author's city cache).
 
 ![demo](https://i.imgur.com/6bFhX3e.png)
 
@@ -29,7 +35,12 @@ background.
   (minimal, framed map, stats bar). Every colour, width, text and stat can be edited.
 * Drag to move the map, scroll or pinch to zoom, rotate it, show or hide streets, buildings, the pit lane,
   the start/finish flag, a north arrow and the country flag.
-* Export a PNG for any paper size from A4 to 24×36 in at 150 or 300 dpi, or an SVG with the fonts embedded.
+* Print sizes from A4 to 24×36 in at 150 or 300 dpi, or wallpaper sizes for phones, tablets, 16:9, 16:10,
+  21:9 ultrawide and 32:9 super-ultrawide screens (or any custom pixel size).
+* Optional white (or any colour) border, or a polaroid frame with a thicker bottom and a handwritten caption.
+* Neon styles (Neon, Synthwave, Acid, Ice) with a glow around the track, and gradient backgrounds.
+* Download as PNG, JPEG, WebP, AVIF (where the browser supports it) or SVG with the fonts embedded.
+  Browsers cannot encode HEIC/HEIF, so it is not offered.
 
 Circuit layouts are extracted from OpenStreetMap ahead of time and ship with the site, so a poster
 appears instantly. Only the surrounding streets are downloaded from Overpass when you open a circuit;
@@ -70,11 +81,15 @@ powerful device.
 
 Luckily, most of the cities can be rendered without problems, resulting in a beautiful art.
 
-## Support
+## Credits
 
-If you like this work and want to use it in your projects - you are more than welcome to do so!
+The original city-roads is by [Andrei Kashcha](https://github.com/anvaka); if you like it, consider
+[sponsoring his work](https://github.com/sponsors/anvaka).
 
-Please [let me](https://twitter.com/anvaka) know how it goes. You can also sponsor my projects [here](https://github.com/sponsors/anvaka) - your funds will be dedicated to more awesome and free data visualizations.
+## Deployment
+
+Every push to `main` builds the site and publishes it to GitHub Pages
+(`.github/workflows/pages.yml`). In the repository settings, under Pages, set the source to "GitHub Actions".
 
 ## Local development
 

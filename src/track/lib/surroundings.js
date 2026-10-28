@@ -6,10 +6,10 @@ const cache = new Map();
 
 /**
  * The area around a circuit we download streets for. Generous, so the map can
- * be zoomed out a bit before it runs out of streets.
+ * be zoomed out a bit, or shown on an ultrawide screen, before it runs out of streets.
  */
 export function getSurroundingsBBox(track) {
-  return padBBox(track.bbox, 1, 1000, 3000);
+  return padBBox(track.bbox, 1.5, 1200, 4000);
 }
 
 /**

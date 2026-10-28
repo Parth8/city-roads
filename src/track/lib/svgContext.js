@@ -6,7 +6,7 @@
  * Supported: fillStyle, strokeStyle, lineWidth, lineCap, lineJoin, globalAlpha,
  * font, textAlign, textBaseline, letterSpacing, save/restore, translate/rotate,
  * beginPath/moveTo/lineTo/closePath/rect, fill/stroke/fillRect/clip,
- * fillText/measureText and drawImage (with an image that has `dataUrl`).
+ * fillText/measureText and drawImage (with a data URL image).
  */
 export default class SvgContext {
   constructor(width, height, measureContext) {
@@ -68,7 +68,29 @@ export default class SvgContext {
     this.state.transform = [a * cos + c * sin, b * cos + d * sin, c * cos - a * sin, d * cos - b * sin, e, f];
   }
 
+  scale(x, y) {
+    let [a, b, c, d, e, f] = this.state.transform;
+    this.state.transform = [a * x, b * x, c * y, d * y, e, f];
+  }
+
   setLineDash() {}
+
+  createLinearGradient(x0, y0, x1, y1) {
+    let [p0x, p0y] = this.apply(x0, y0);
+    let [p1x, p1y] = this.apply(x1, y1);
+    let id = 'gradient' + (this.nextId++);
+    let stops = [];
+    this.defs.push({
+      toString: () => `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${fmt(p0x)}" y1="${fmt(p0y)}" x2="${fmt(p1x)}" y2="${fmt(p1y)}">` +
+        stops.map(([offset, color]) => `<stop offset="${offset}" stop-color="${color}"/>`).join('') + '</linearGradient>'
+    });
+    return {
+      svgReference: `url(#${id})`,
+      addColorStop(offset, color) {
+        stops.push([offset, color]);
+      }
+    };
+  }
 
   // ---- paths
   beginPath() {
@@ -99,7 +121,7 @@ export default class SvgContext {
 
   fill() {
     if (!this.path) return;
-    this.parts.push(`<path d="${this.path}" fill="${this.state.fillStyle}"${this.alphaAttr('fill-opacity')}/>`);
+    this.parts.push(`<path d="${this.path}" fill="${paint(this.state.fillStyle)}"${this.alphaAttr('fill-opacity')}/>`);
   }
 
   stroke() {
@@ -142,14 +164,16 @@ export default class SvgContext {
     let [a, b, c, d, e, f] = s.transform;
     let transform = (a !== 1 || b !== 0 || c !== 0 || d !== 1 || e !== 0 || f !== 0)
       ? ` transform="matrix(${[a, b, c, d, e, f].map(fmt).join(' ')})"` : '';
-    this.parts.push(`<text x="${fmt(x + shift)}" y="${fmt(y)}"${transform} fill="${s.fillStyle}"${this.alphaAttr('fill-opacity')} font-family="${escapeXml(font.family)}" font-size="${fmt(font.size)}" font-weight="${font.weight}"${font.style ? ` font-style="${font.style}"` : ''} text-anchor="${anchor}" dominant-baseline="${baseline}"${spacing ? ` letter-spacing="${fmt(spacing)}"` : ''}>${escapeXml(text)}</text>`);
+    this.parts.push(`<text x="${fmt(x + shift)}" y="${fmt(y)}"${transform} fill="${s.fillStyle}"${this.alphaAttr('fill-opacity')} font-family="${escapeXml(font.family)}" font-size="${fmt(font.size)}" font-weight="${font.weight}"${font.style ? ` font-style="${font.style}"` : ''} xml:space="preserve" text-anchor="${anchor}" dominant-baseline="${baseline}"${spacing ? ` letter-spacing="${fmt(spacing)}"` : ''}>${escapeXml(text)}</text>`);
   }
 
   drawImage(image, x, y, w, h) {
-    if (!image || !image.dataUrl) return;
+    // Only self-contained images (data URLs) can be embedded.
+    let href = image && (image.dataUrl || image.src);
+    if (!href || !href.startsWith('data:')) return;
     let [px, py] = this.apply(x, y);
     let k = this.scaleFactor();
-    this.parts.push(`<image href="${image.dataUrl}" x="${fmt(px)}" y="${fmt(py)}" width="${fmt(w * k)}" height="${fmt(h * k)}" preserveAspectRatio="none"${this.alphaAttr('opacity')}/>`);
+    this.parts.push(`<image href="${href}" x="${fmt(px)}" y="${fmt(py)}" width="${fmt(w * k)}" height="${fmt(h * k)}" preserveAspectRatio="none"${this.alphaAttr('opacity')}/>`);
   }
 
   // ---- output
@@ -177,6 +201,10 @@ ${this.parts.join('\n')}
     let alpha = this.state.globalAlpha;
     return alpha < 1 ? ` ${name}="${fmt(alpha)}"` : '';
   }
+}
+
+function paint(style) {
+  return style && style.svgReference ? style.svgReference : style;
 }
 
 function defaultState() {

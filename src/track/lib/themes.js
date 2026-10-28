@@ -3,9 +3,13 @@
  * layout can be changed in the editor afterwards.
  *
  * layout:
- *   minimal - map on top, title and a one-line summary underneath
- *   inset   - map in a box on a mat, title, country and coordinates underneath
- *   data    - title on top, map in the middle, a row of stats at the bottom
+ *   minimal   - map on top, title and a one-line summary underneath
+ *   inset     - map in a box on a mat, title, country and coordinates underneath
+ *   data      - title on top, map in the middle, a row of stats at the bottom
+ *   wallpaper - full-bleed map with an optional small label (used for screens)
+ *
+ * Optional extras: background2 (vertical gradient), buildingColor, glow +
+ * glowStrength (neon light around the track) and trackCore (bright centre line).
  */
 export const themes = [
   {
@@ -185,23 +189,132 @@ export const themes = [
     titleSpacing: 0.1,
     bodyFont: 'Montserrat',
   },
+  {
+    id: 'neon',
+    name: 'Neon',
+    layout: 'minimal',
+    background: '#07040f',
+    background2: '#1a0a2e',
+    mapBackground: null,
+    streets: '#2de2e6',
+    streetOpacity: 0.3,
+    buildings: 'none',
+    track: '#ff2a6d',
+    trackCasing: null,
+    trackCore: '#ffd6e3',
+    glow: '#ff2a6d',
+    glowStrength: 0.8,
+    trackWidth: 8,
+    pit: null,
+    text: '#fdf6ff',
+    muted: '#9d9dc4',
+    accent: '#2de2e6',
+    fade: 0.45,
+    titleFont: 'Montserrat',
+    titleWeight: 700,
+    titleSpacing: 0.16,
+    bodyFont: 'Montserrat',
+  },
+  {
+    id: 'synthwave',
+    name: 'Synthwave',
+    layout: 'minimal',
+    background: '#1b0b38',
+    background2: '#47125c',
+    mapBackground: null,
+    streets: '#f222ff',
+    streetOpacity: 0.3,
+    buildings: 'none',
+    track: '#ffd319',
+    trackCasing: null,
+    trackCore: '#fff6c2',
+    glow: '#ff901f',
+    glowStrength: 0.7,
+    trackWidth: 8,
+    pit: null,
+    text: '#ffd319',
+    muted: '#f9a8ff',
+    accent: '#f222ff',
+    fade: 0.4,
+    titleFont: 'Barlow Condensed',
+    titleWeight: 600,
+    titleSpacing: 0.14,
+    bodyFont: 'Barlow Condensed',
+  },
+  {
+    id: 'acid',
+    name: 'Acid',
+    layout: 'minimal',
+    background: '#050505',
+    mapBackground: null,
+    streets: '#00ff9f',
+    streetOpacity: 0.22,
+    buildings: 'none',
+    track: '#ccff00',
+    trackCasing: null,
+    trackCore: '#f4ffc2',
+    glow: '#a8ff00',
+    glowStrength: 0.65,
+    trackWidth: 7,
+    pit: null,
+    text: '#ccff00',
+    muted: '#7ddfae',
+    accent: '#00ff9f',
+    fade: 0.5,
+    titleFont: 'Barlow Condensed',
+    titleWeight: 500,
+    titleSpacing: 0.2,
+    bodyFont: 'Barlow Condensed',
+  },
+  {
+    id: 'ice',
+    name: 'Ice',
+    layout: 'minimal',
+    background: '#020c1b',
+    background2: '#0a2540',
+    mapBackground: null,
+    streets: '#64ffda',
+    streetOpacity: 0.25,
+    buildings: 'outline',
+    track: '#7df9ff',
+    trackCasing: null,
+    trackCore: '#e9feff',
+    glow: '#00b4ff',
+    glowStrength: 0.7,
+    trackWidth: 7,
+    pit: null,
+    text: '#e6f1ff',
+    muted: '#8ab4d8',
+    accent: '#64ffda',
+    fade: 0.4,
+    titleFont: 'Montserrat',
+    titleWeight: 500,
+    titleSpacing: 0.18,
+    bodyFont: 'Montserrat',
+  },
 ];
 
 export const layouts = [
   {id: 'minimal', name: 'Minimal'},
   {id: 'inset', name: 'Framed map'},
   {id: 'data', name: 'Stats'},
+  {id: 'wallpaper', name: 'Full bleed'},
 ];
+
+// Fields every theme has, so switching themes resets the optional extras.
+const THEME_DEFAULTS = {background2: null, buildingColor: null, glow: null, glowStrength: 0, trackCore: null};
 
 export const fonts = [
   {family: 'Montserrat', weights: [400, 500, 700]},
   {family: 'Barlow Condensed', weights: [400, 500, 600]},
   {family: 'Barlow', weights: [400, 500, 600]},
   {family: 'Playfair Display', weights: [400, 700]},
+  {family: 'Caveat', weights: [500]}, // polaroid captions
 ];
 
 export function getTheme(id) {
-  return themes.find(x => x.id === id) || themes[0];
+  let theme = themes.find(x => x.id === id) || themes[0];
+  return {...THEME_DEFAULTS, ...theme};
 }
 
 let fontsReady = null;
