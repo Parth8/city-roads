@@ -39,6 +39,11 @@ export default defineConfig({
     __VUE_PROD_DEVTOOLS__: false,
     __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
   },
+  build: {
+    // Keep older phones and tablets working (iOS 14+, Android Chrome 87+), not just current browsers.
+    target: ['es2020', 'chrome87', 'edge88', 'firefox78', 'safari14'],
+    cssTarget: ['chrome87', 'edge88', 'firefox78', 'safari14']
+  },
   server: {
     port: 8080
   },
