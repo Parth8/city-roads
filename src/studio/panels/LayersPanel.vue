@@ -29,9 +29,17 @@
       </transition>
     </div>
   </section>
-  <p class='hint' v-if='studio.detail !== "full" && studio.streetsLoaded'>
-    This is a large area, so {{detailNote}} were left out to keep it fast.
-  </p>
+  <section class='group'>
+    <div class='label'>Map data</div>
+    <chips :model-value='studio.dataMode' @update:model-value='studio.setDataMode' :options='dataModes' fill label='Map data'></chips>
+    <p class='hint'>
+      {{modeNote}}
+      <template v-if='studio.dataSource && studio.streetsLoaded'><br>Loaded from {{studio.dataSource}}.</template>
+    </p>
+    <p class='hint' v-if='studio.detail !== "full" && studio.streetsLoaded'>
+      This is a large area, so {{detailNote}} were simplified to keep it fast. Try Ultra for more.
+    </p>
+  </section>
 </div>
 </template>
 
@@ -40,6 +48,7 @@ import Toggle from '../components/Toggle.vue';
 import Scrubber from '../components/Scrubber.vue';
 import Chips from '../components/Chips.vue';
 import Icon from '../components/Icon.vue';
+import {DATA_MODES} from '../lib/mapData.js';
 
 export default {
   name: 'LayersPanel',
@@ -48,6 +57,7 @@ export default {
   data() {
     return {
       expanded: null,
+      dataModes: DATA_MODES.map(m => ({id: m.id, name: m.name, title: m.note})),
       buildingModes: [{id: 'outline', name: 'Outline'}, {id: 'fill', name: 'Filled'}, {id: 'none', name: 'Hidden'}]
     };
   },
@@ -73,7 +83,8 @@ export default {
         {id: 'buildings', name: 'Buildings', settings: true},
         {id: 'water', name: 'Water'},
         {id: 'parks', name: 'Parks & woods'},
-        {id: 'rail', name: 'Railways'}
+        {id: 'rail', name: 'Railways'},
+        {id: 'landmarks', name: 'Landmarks', note: 'monuments, museums, peaks'}
       );
       let labels = [
         {id: 'title', name: 'Title'},
@@ -86,10 +97,14 @@ export default {
       labels.push({id: 'north', name: 'North arrow'}, {id: 'attribution', name: 'Map credit', note: 'please keep for shared prints'});
       return [{name: 'Map', rows: map}, {name: 'Labels', rows: labels}];
     },
+    modeNote() {
+      let mode = DATA_MODES.find(m => m.id === this.studio.dataMode);
+      return mode ? mode.name + ': ' + mode.note + '.' : '';
+    },
     detailNote() {
       let d = this.studio.detail;
-      if (d === 'major') return 'small streets, buildings and parks';
-      if (d === 'roads') return 'footpaths, service roads, buildings and parks';
+      if (d === 'major') return 'small streets and buildings';
+      if (d === 'roads') return 'footpaths and buildings';
       return 'buildings';
     }
   },

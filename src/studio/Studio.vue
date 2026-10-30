@@ -86,7 +86,8 @@ import {presets, presetStyle, getPreset} from './lib/presets.js';
 import {loadFonts} from './lib/fonts.js';
 import {getOutput, defaultOutput, getCategory} from './lib/outputs.js';
 import {prepareTrack, preparePlace, prepareFeatures, featuresBBox, bestRotation} from './lib/geometry.js';
-import {loadFeatures} from './lib/surroundings.js';
+import {loadMapData} from './lib/mapData.js';
+import {bboxAreaKm2} from './lib/geo.js';
 import {formatDMS, bboxCenter} from './lib/geo.js';
 import {gradientPalettes, clonePaint} from './lib/paint.js';
 import renderPoster, {POSTER_WIDTH} from './lib/render.js';
@@ -111,7 +112,7 @@ export const DEFAULT_LAYERS = {
   track: true, pit: false, start: true, corners: false,
   streets: true, buildings: true, water: true, parks: false, rail: true,
   title: true, subtitle: true, tagline: true, stats: true, coords: true,
-  flag: false, north: false, attribution: true
+  flag: false, north: false, attribution: true, landmarks: false
 };
 // Layers a preset may switch on or off; the rest are left as the user set them.
 const PRESET_LAYERS = ['north', 'flag', 'corners', 'parks'];
@@ -151,6 +152,11 @@ export default {
     let layers = {...DEFAULT_LAYERS};
     applyPresetLayers(layers, presetId);
     let narrow = window.innerWidth < 900;
+    // A landmark or a neighbourhood looks best as a little 3D model with names on it.
+    if (ref.kind === 'place' && bboxAreaKm2(ref.bbox) < 12) {
+      style.buildings3d = true;
+      layers.landmarks = true;
+    }
 
     return {
       meta,
@@ -188,6 +194,8 @@ export default {
       streetsCancelled: false,
       streetNames: [],
       detail: 'full',
+      dataMode: 'high',
+      dataSource: '',
       loadError: null,
       exporting: false,
       exportError: null,
@@ -236,7 +244,7 @@ export default {
       return JSON.stringify({
         presetId: this.presetId, style: this.style, layers: this.layers, text: this.text, uppercase: this.uppercase,
         labelPosition: this.labelPosition, view: this.view, outputSettings: this.outputSettings, border: this.border,
-        selection: this.selection, taglineEdited: this.taglineEdited
+        selection: this.selection, taglineEdited: this.taglineEdited, dataMode: this.dataMode
       });
     }
   },
@@ -343,17 +351,21 @@ export default {
       this.streetsError = null;
       this.streetsCancelled = false;
       let progress = new Progress(status => {
-        if (status.loaded < 0) this.streetsStatusText = `OpenStreetMap is busy, trying again (${status.attempt} of ${status.of})…`;
-        else this.streetsStatusText = `Downloading streets… ${formatBytes(status.loaded)}`;
+        if (status.switching) this.streetsStatusText = 'That map source is not answering, trying another…';
+        else if (status.loaded < 0) this.streetsStatusText = `OpenStreetMap is busy, trying again (${status.attempt} of ${status.of})…`;
+        else if (status.total) this.streetsStatusText = `Loading map tiles ${status.tiles}/${status.total} · ${formatBytes(status.loaded)}`;
+        else this.streetsStatusText = `Downloading map data… ${formatBytes(status.loaded)}`;
       });
       this.progress = progress;
       this.streetsStatusText = 'Loading streets, water and buildings…';
       let bbox = featuresBBox({kind: this.subjectRef.kind, bbox: this.subjectBBox});
-      loadFeatures(this.subjectKey(), bbox, progress).then(raw => {
+      let started = performance.now();
+      loadMapData({key: this.subjectKey(), bbox, mode: this.dataMode}, progress).then(raw => {
         if (progress.isCancelled) return;
-        this.features = prepareFeatures(raw, this.prepared);
+        this.features = markRaw(prepareFeatures(raw, this.prepared));
         this.streetNames = markRaw(this.features.streetNames);
-        this.detail = raw.detail;
+        this.detail = detailOf(raw);
+        this.dataSource = `${sourceName(raw.source)} · ${((performance.now() - started) / 1000).toFixed(1)} s` + (raw.zoom ? ` · zoom ${raw.zoom}, ${raw.tiles} tiles` : '');
         this.streetsLoaded = true;
         this.loadingStreets = false;
         this.scheduleRender();
@@ -363,6 +375,12 @@ export default {
         this.loadingStreets = false;
         this.streetsError = e;
       });
+    },
+
+    setDataMode(mode) {
+      if (mode === this.dataMode) return;
+      this.dataMode = mode;
+      this.loadStreets();
     },
 
     cancelStreets() {
@@ -458,7 +476,7 @@ export default {
         this.style = {...presetStyle(this.presetId), ...state.style};
         this.layers = {...DEFAULT_LAYERS, ...state.layers};
         this.text = {...this.text, ...state.text};
-        ['uppercase', 'labelPosition', 'taglineEdited'].forEach(k => {
+        ['uppercase', 'labelPosition', 'taglineEdited', 'dataMode'].forEach(k => {
           if (k in state) this[k] = state[k];
         });
         Object.assign(this.view, state.view);
@@ -806,6 +824,17 @@ function applyPresetLayers(layers, presetId) {
   PRESET_LAYERS.forEach(key => {
     layers[key] = preset.layers && key in preset.layers ? preset.layers[key] : DEFAULT_LAYERS[key];
   });
+}
+
+function sourceName(id) {
+  return {openfreemap: 'OpenFreeMap tiles', versatiles: 'VersaTiles', overpass: 'Overpass (raw OSM)'}[id] || id;
+}
+
+// What was left out to keep a large area fast.
+function detailOf(raw) {
+  if (raw.source === 'overpass') return raw.detail;
+  if (raw.zoom >= 13) return 'full';
+  return raw.zoom >= 11 ? 'roads' : 'major';
 }
 
 function normalizeAngle(a) {

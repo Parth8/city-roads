@@ -5,6 +5,7 @@ import {gradient, gradientPalettes} from './paint.js';
  * overrides what it needs. Paints are colours or gradients (see paint.js).
  *
  * layout: minimal | inset | data | fullbleed
+ * buildings3d raises buildings by their OSM height (extrude, tilt, lightAngle).
  * effects: 'none' | 'emboss' | 'deboss'
  * null paints are derived from the others (e.g. water from background and streets).
  */
@@ -29,6 +30,11 @@ export const BASE = {
   buildingEffect: 'none',
   water: null,
   parks: null,
+  buildings3d: false,
+  extrude: 1,
+  tilt: 0.55,
+  lightAngle: 315,
+  buildingEdge: null,
   selection: '#ff3b30',
   selectionWidth: 2.2,
   effectDepth: 0.6,
@@ -158,6 +164,25 @@ export const presets = [
     style: {background: '#fdeef4', streets: '#7cc6b6', streetOpacity: 0.55, buildings: 'none', track: '#9b7fd1', trackCasing: '#ffffff', trackWidth: 10,
       water: '#cfe6ff', parks: '#d9f2e4', selection: '#f28fad', text: '#6d5a8a', muted: '#9a8ab3', accent: '#f28fad', fade: 0.2,
       titleFont: 'Space Grotesk', titleWeight: 600, titleSpacing: 0.12, bodyFont: 'Space Grotesk'}
+  },
+  {
+    id: 'skyline', name: 'Skyline', layers: {landmarks: true},
+    style: {background: gradient(['#0b1020', '#1d2748'], 90), streets: '#7083a8', streetOpacity: 0.45, buildings: 'fill', buildingColor: '#eef2fb',
+      buildings3d: true, tilt: 0.6, lightAngle: 300, track: '#ff3b6b', trackWidth: 8, glow: '#ff3b6b', glowStrength: 0.4, selection: '#ffcc4d',
+      text: '#ffffff', muted: '#a9b8d8', accent: '#ff3b6b', fade: 0.1, titleFont: 'Space Grotesk', titleWeight: 600, titleSpacing: 0.18, bodyFont: 'Space Grotesk'}
+  },
+  {
+    id: 'clay', name: 'Clay model', layers: {parks: true},
+    style: {background: '#f1ede6', streets: '#d6cfc2', streetOpacity: 1, streetWidth: 1.6, buildings: 'fill', buildingColor: '#fdfbf7', buildings3d: true,
+      tilt: 0.5, lightAngle: 320, water: '#c9d6dc', parks: '#e2e7d6', track: '#e4572e', trackWidth: 9, selection: '#e4572e',
+      text: '#3b3631', muted: '#8a8177', accent: '#e4572e', fade: 0, titleFont: 'Playfair Display', titleWeight: 700, titleSpacing: 0.06, bodyFont: 'Barlow'}
+  },
+  {
+    id: 'neon-city', name: 'Neon City',
+    style: {background: '#05010d', streets: '#ff2bd6', streetOpacity: 0.35, buildings: 'fill', buildingColor: '#1a1036', buildingEdge: '#00e5ff',
+      buildings3d: true, tilt: 0.65, lightAngle: 45, track: '#00e5ff', trackCore: '#e6fdff', glow: '#00e5ff', glowStrength: 0.7, trackWidth: 7,
+      selection: '#00e5ff', text: gradient(['#00e5ff', '#ff2bd6'], 0), muted: '#a58ad6', accent: '#ff2bd6', fade: 0.15,
+      titleFont: 'Orbitron', titleWeight: 700, titleSpacing: 0.14, bodyFont: 'Space Grotesk'}
   },
 ];
 

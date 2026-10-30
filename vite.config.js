@@ -13,7 +13,7 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob:",
   "connect-src 'self' data: blob: https://overpass-api.de https://*.overpass-api.de https://overpass.private.coffee " +
     'https://maps.mail.ru https://overpass.kumi.systems https://nominatim.openstreetmap.org ' +
-    'https://d2uf7yjjctyxf.cloudfront.net https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net',
+    'https://tiles.openfreemap.org https://tiles.versatiles.org https://d2uf7yjjctyxf.cloudfront.net https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net',
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'none'",

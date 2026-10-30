@@ -12,9 +12,13 @@ OpenStreetMap's, Google Fonts, and the original author's city cache.
 
 * **Subjects:** 96 race circuits (F1, MotoGP, WEC, IMSA, IndyCar, NASCAR, Supercars, DTM, Super GT, WSBK,
   BTCC, Isle of Man TT and historic venues), or any place you can search for.
-* **20 looks** to start from, previewed live on your map, and a "Surprise me" button.
+* **23 looks** to start from, previewed live on your map, and a "Surprise me" button.
 * **Layers:** circuit, pit lane, start/finish flag, corner names (from OpenStreetMap), streets, buildings,
-  water, parks and woods, railways, and every piece of text. Switch off anything you don't want.
+  water, parks and woods, railways, landmark names (monuments, museums, peaks), and every piece of text.
+  Switch off anything you don't want.
+* **3D buildings:** a bird's-eye view where buildings rise to their real mapped height, with controls for
+  height, tilt, light direction, roof colour and outlines. Search a monument ("Tokyo Tower", "Eiffel
+  Tower", "Central Park") and it opens as a little 3D model with its landmarks named.
 * **Colours and gradients** for every part (background, track, streets, buildings, water, parks, title…),
   with 18 gradient palettes you can apply to one part or to everything.
 * **Effects:** neon glow, emboss and deboss (raised or pressed-in, like letterpress), fade with distance,
@@ -33,8 +37,17 @@ OpenStreetMap's, Google Fonts, and the original author's city cache.
 * Works on phones (bottom tabs and sheets), tablets and desktops.
 
 Circuit layouts are extracted from OpenStreetMap ahead of time and ship with the site, so they appear
-instantly; streets, water and buildings are downloaded from Overpass when you open a subject. Very large
-places get fewer details (main roads only above ~2,500 km²) to stay fast.
+instantly. Streets, water, buildings (with heights) and landmarks come from OpenStreetMap through:
+
+1. [OpenFreeMap](https://openfreemap.org) vector tiles, served from a CDN and decoded in a web worker:
+   usually a few seconds even for a whole city;
+2. [VersaTiles](https://versatiles.org) vector tiles, if OpenFreeMap does not answer;
+3. Overpass (several public servers), if neither tile service answers, or when you pick
+   **Layers › Map data › Raw OSM** for every last footpath.
+
+**Layers › Map data** trades download size for detail: Fast, Detailed (default) or Ultra. Large areas
+are drawn from lower-zoom tiles, which simplify small streets and buildings. The map credit on the
+poster names whichever source was used.
 
 ## Classic mode: how it is made
 

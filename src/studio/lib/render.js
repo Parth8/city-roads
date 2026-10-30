@@ -310,9 +310,12 @@ function drawMap(ctx, poster, rect, box) {
     drawAreas(c, features.parks, layers.parks, style.parks || mix(style.background, style.streets, 6), 1, env);
     drawAreas(c, features.waterAreas, layers.water, style.water || mix(style.background, style.streets, 12), 1, env);
     if (layers.water) drawChunks(c, features.water, env, style.water || style.streets, style.streetOpacity * 0.8, style.streetWidth, 'none', notSelected);
-    if (layers.buildings && style.buildings !== 'none') drawBuildings(c, features.buildings, env);
+    let threeD = style.buildings3d && layers.buildings;
+    if (layers.buildings && style.buildings !== 'none' && !threeD) drawBuildings(c, features.buildings, env);
     if (layers.rail) drawChunks(c, features.rail, env, style.streets, style.streetOpacity * 0.6, style.streetWidth, 'none', notSelected);
     if (layers.streets) drawChunks(c, features.roads, env, style.streets, style.streetOpacity, style.streetWidth, style.streetEffect, notSelected);
+    // Raised buildings stand on top of the streets around them.
+    if (threeD) drawBuildings3d(c, features.buildings, env);
   };
   let drawHero = c => {
     if (layers.pit && subject.pit.length) {
@@ -342,6 +345,7 @@ function drawMap(ctx, poster, rect, box) {
     if (layers.start && subject.start) drawStartLine(ctx, subject, transform, style.trackWidth, style);
     if (layers.corners && subject.corners.length) drawCornerLabels(ctx, poster, transform, rect);
   }
+  if (layers.landmarks && features && features.labels.length && !isolate) drawLandmarks(ctx, poster, features.labels, transform, rect);
   ctx.restore();
 
   return {rect, transform};
@@ -510,12 +514,137 @@ function drawBuildings(ctx, buildings, env) {
 }
 
 /**
+ * Buildings as a bird's-eye model: each footprint is raised by its height
+ * from OpenStreetMap, as if seen from above and slightly to the south.
+ * Walls are shaded by how they face the light; far buildings are drawn
+ * first so near ones cover them (painter's algorithm).
+ *
+ * style.extrude scales heights, style.tilt is how steep the view is (0 =
+ * straight down), style.lightAngle is where the light comes from (degrees,
+ * 0 = from the top of the poster, clockwise).
+ */
+function drawBuildings3d(ctx, buildings, env) {
+  if (!buildings || !buildings.length) return;
+  let {transform, rect, fade, box, style} = env;
+  let lift = transform.scale * style.tilt * style.extrude; // poster units per metre of height
+  let base = mainColor(style.buildingColor || style.streets);
+  let light = (style.lightAngle || 0) * Math.PI / 180;
+  let lx = Math.sin(light), ly = -Math.cos(light);
+  // Wall colours from dark (facing away from the light) to bright (facing it).
+  let shades = [0, 1, 2, 3, 4, 5].map(i => mix(base, '#000000', Math.round(55 - i * 9)));
+  let edge = style.buildingEdge ? toStyle(ctx, style.buildingEdge, box) : null;
+  let roof = toStyle(ctx, style.buildingColor || style.streets, box);
+  let defaultHeight = 9; // when OSM has no height: about three floors
+
+  let visible = [];
+  for (let b of buildings) {
+    if (fade(b.distance) <= 0) continue;
+    let height = b.height || defaultHeight;
+    let margin = height * lift;
+    let x = transform.x(b.cx, b.cy), y = transform.y(b.cx, b.cy);
+    let r = b.r * transform.scale + 4;
+    if (x + r < rect.x || x - r > rect.x + rect.w || y + r < rect.y || y - r - margin > rect.y + rect.h) continue;
+    let n = b.pts.length / 2;
+    let sx = new Float64Array(n), sy = new Float64Array(n);
+    let maxY = -Infinity;
+    for (let i = 0; i < n; ++i) {
+      sx[i] = transform.x(b.pts[2 * i], b.pts[2 * i + 1]);
+      sy[i] = transform.y(b.pts[2 * i], b.pts[2 * i + 1]);
+      if (sy[i] > maxY) maxY = sy[i];
+    }
+    visible.push({b, sx, sy, maxY, top: height * lift, bottom: (b.minHeight || 0) * lift});
+  }
+  // Far (higher on the poster) first; for stacked parts of one tower, the lower part first.
+  visible.sort((a, c) => (a.maxY - c.maxY) || (a.bottom - c.bottom));
+
+  ctx.save();
+  ctx.lineJoin = 'round';
+  for (let v of visible) {
+    let {sx, sy, top, bottom, b} = v;
+    let n = sx.length;
+    // Signed area tells which way the ring winds on screen, so we know which side is "outside".
+    let area = 0;
+    for (let i = 0, j = n - 1; i < n; j = i++) area += sx[j] * sy[i] - sx[i] * sy[j];
+    let orient = area > 0 ? 1 : -1;
+    let walls = [[], [], [], [], [], []];
+    for (let i = 0; i < n; ++i) {
+      if (b.cut && b.cut[i]) continue; // edge where a tile cut the building: not a real wall
+      let j = (i + 1) % n;
+      let dx = sx[j] - sx[i], dy = sy[j] - sy[i];
+      let nx = dy * orient, ny = -dx * orient;
+      if (ny <= 0) continue; // faces away from the viewer
+      let len = Math.hypot(nx, ny) || 1;
+      let brightness = 0.5 + 0.5 * ((nx * lx + ny * ly) / len);
+      walls[Math.min(5, Math.max(0, Math.round(brightness * 5)))].push(i);
+    }
+    walls.forEach((list, shade) => {
+      if (!list.length) return;
+      ctx.beginPath();
+      for (let i of list) {
+        let j = (i + 1) % n;
+        ctx.moveTo(sx[i], sy[i] - bottom);
+        ctx.lineTo(sx[j], sy[j] - bottom);
+        ctx.lineTo(sx[j], sy[j] - top);
+        ctx.lineTo(sx[i], sy[i] - top);
+        ctx.closePath();
+      }
+      ctx.fillStyle = shades[shade];
+      ctx.fill();
+      if (edge) {
+        ctx.strokeStyle = edge;
+        ctx.lineWidth = 0.35;
+        ctx.stroke();
+      }
+    });
+    ctx.beginPath();
+    ctx.moveTo(sx[0], sy[0] - top);
+    for (let i = 1; i < n; ++i) ctx.lineTo(sx[i], sy[i] - top);
+    ctx.closePath();
+    ctx.fillStyle = roof;
+    ctx.fill();
+    if (edge) {
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = 0.45;
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+/**
+ * Names of landmarks (towers, museums, monuments) and water, with a halo in
+ * the background colour so they read on top of the map.
+ */
+const MAX_LANDMARKS = 14;
+
+function drawLandmarks(ctx, poster, labels, transform, rect) {
+  let {style} = poster;
+  let size = 13;
+  let placed = [];
+  let font = {...bodyFont(style, size, 600), spacing: 0.02, paint: style.text, halo: mainColor(style.background)};
+  let waterFont = {...font, weight: 500, paint: style.muted};
+  // A few well-spaced names read as a map; dozens read as noise.
+  let gap = 14;
+  for (let label of labels) {
+    if (placed.length >= MAX_LANDMARKS) break;
+    let x = transform.x(label.x, label.y), y = transform.y(label.x, label.y);
+    let f = label.kind === 'water' ? waterFont : font;
+    let width = measure(ctx, label.name, f);
+    let box = {x: x - width / 2 - 4, y: y - size, w: width + 8, h: size + 6};
+    if (box.x < rect.x || box.y < rect.y || box.x + box.w > rect.x + rect.w || box.y + box.h > rect.y + rect.h) continue;
+    if (placed.some(b => b.x < box.x + box.w + gap && box.x < b.x + b.w + gap && b.y < box.y + box.h + gap && box.y < b.y + b.h + gap)) continue;
+    placed.push(box);
+    drawText(ctx, label.name, x, y, {...f, align: 'center'});
+  }
+}
+
+/**
  * Selected streets: drawn above everything else in the selection colour, with
  * a thin outline in the background colour so they stand out on busy maps.
  */
 function drawSelection(ctx, features, selected, env) {
   let {style} = env;
-  let chunks = features.roads.concat(features.rail, features.water).filter(c => selected.has(c.key));
+  let chunks = features.roads.concat(features.namedRoads, features.rail, features.water).filter(c => selected.has(c.key));
   if (!chunks.length) return;
   let width = style.streetWidth * style.selectionWidth;
   let noFade = {...env, fade: () => FADE_BUCKETS - 1};
@@ -703,7 +832,9 @@ function drawFlag(ctx, flag, cx, top, height) {
 
 function drawAttribution(ctx, poster, x, y, align, size = 10) {
   if (!poster.layers.attribution) return;
-  drawText(ctx, 'Map data © OpenStreetMap contributors', x, y, {...bodyFont(poster.style, size, 400), align, paint: poster.style.muted, alpha: 0.75});
+  // Credit whoever served the map data, and always OpenStreetMap.
+  let credit = (poster.features && poster.features.attribution) || 'Map data © OpenStreetMap contributors';
+  drawText(ctx, credit, x, y, {...bodyFont(poster.style, size, 400), align, paint: poster.style.muted, alpha: 0.75});
 }
 
 // ---------------------------------------------------------------- text
@@ -752,6 +883,15 @@ function drawText(ctx, text, x, y, font) {
   if (font.alpha !== undefined) ctx.globalAlpha = font.alpha;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
+  if (font.halo) {
+    ctx.save();
+    ctx.strokeStyle = font.halo;
+    ctx.lineWidth = font.size * 0.28;
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.85;
+    ctx.strokeText(text, left, y);
+    ctx.restore();
+  }
   if ('letterSpacing' in ctx || !spacing) {
     ctx.fillText(text, left, y);
   } else {

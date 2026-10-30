@@ -28,7 +28,8 @@ export default function hitTest(subject, features, map, point, tolerance) {
     if (best) bestDistance *= 0.6;
   }
   if (features) {
-    for (let list of [features.roads, features.rail, features.water]) {
+    // Named streets first: tapping a street should select it by name, not one unnamed piece.
+    for (let list of [features.namedRoads, features.roads, features.rail, features.water]) {
       for (let chunk of list) {
         let [cx, cy] = map.point(chunk.cx, chunk.cy);
         let r = chunk.r * map.scale + bestDistance;

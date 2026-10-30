@@ -57,6 +57,7 @@ export function prepareTrack(track) {
  * to) from its centre.
  */
 export function preparePlace(place) {
+  place = {...place, bbox: placeBBox(place.bbox)};
   let origin = bboxCenter(place.bbox);
   let project = createProjection(origin);
   let [west, south, east, north] = place.bbox;
@@ -79,90 +80,126 @@ export function preparePlace(place) {
 }
 
 /**
+ * Landmarks (a tower, a statue) come with a tiny box; show them with some
+ * city around, about a kilometre across.
+ */
+export function placeBBox(bbox) {
+  let [west, south, east, north] = bbox;
+  let midLat = (south + north) / 2 * Math.PI / 180;
+  let widthM = (east - west) * 111320 * Math.cos(midLat);
+  let heightM = (north - south) * 111320;
+  if (widthM > 900 && heightM > 900) return bbox;
+  // A single monument (a tower, a statue) gets a tight frame so it stands tall in 3D.
+  let target = Math.min(widthM, heightM) < 200 ? 600 : 1000;
+  return padBBox(bbox, 0, Math.max(0, (target - Math.min(widthM, heightM)) / 2));
+}
+
+/**
  * The area we download streets for. Generous around tracks, so the map can be
  * zoomed out or shown on an ultrawide screen before it runs out of streets.
  */
 export function featuresBBox(subject) {
-  if (subject.kind === 'place') return padBBox(subject.bbox, 0.05, 100);
+  if (subject.kind === 'place') return padBBox(placeBBox(subject.bbox), 0.08, 150);
   return padBBox(subject.bbox, 1.5, 1200, 4000);
 }
 
 /**
- * Turns features downloaded from OSM into short chunks with a precomputed
- * distance to the subject, so the renderer can fade them with distance and
- * find what was tapped without touching every point on every frame.
+ * Turns map data (flat [lon, lat, ...] geometry, see mapData.js) into short
+ * chunks in local metres with a precomputed distance to the subject, so the
+ * renderer can fade with distance and find what was tapped without touching
+ * every point on every frame.
  */
 export function prepareFeatures(features, prepared) {
   let {project, index, radius} = prepared;
   let maxDistance = radius * 6;
   let chunkLength = Math.max(radius / 30, 40);
+  // Tile data keeps street names on separate lines; Overpass has them on the roads.
+  let separateNames = features.namedRoads && features.namedRoads.length > 0;
 
-  let roads = toChunks(features.roads, 'road');
+  let names = new Set();
+  (separateNames ? features.namedRoads : features.roads).forEach(r => r.name && names.add(r.name));
+
   return {
-    detail: features.detail,
-    roads,
-    rail: toChunks(features.rail, 'rail'),
-    water: toChunks(features.waterLines, 'water'),
+    source: features.source,
+    attribution: features.attribution,
+    detail: features.detail || 'full',
+    zoom: features.zoom,
+    roads: toChunks(features.roads, 'road', !separateNames),
+    namedRoads: separateNames ? toChunks(features.namedRoads, 'road', true) : [],
+    rail: toChunks(features.rail, 'rail', true),
+    water: toChunks(features.waterLines, 'water', true),
     waterAreas: features.waterAreas.map(toArea),
     parks: features.parks.map(toArea),
     buildings: features.buildings.map(toArea),
-    streetNames: Array.from(new Set(features.roads.map(r => r.name).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+    // Most important first, so they win when labels collide.
+    labels: dedupeLabels(features.labels || []).map(l => {
+      let [x, y] = project(l.lon, l.lat);
+      return {name: l.name, kind: l.kind, rank: l.rank || 30, x, y};
+    }).sort((a, b) => a.rank - b.rank),
+    streetNames: Array.from(names).sort((a, b) => a.localeCompare(b))
   };
 
-  function toArea(area) {
-    let pts = new Float64Array(area.pts.length * 2);
-    let cx = 0, cy = 0;
-    area.pts.forEach(([lon, lat], i) => {
-      let [x, y] = project(lon, lat);
-      pts[2 * i] = x;
-      pts[2 * i + 1] = y;
-      cx += x;
-      cy += y;
-    });
-    cx /= area.pts.length;
-    cy /= area.pts.length;
-    let r = 0;
-    for (let i = 0; i < pts.length; i += 2) r = Math.max(r, Math.hypot(pts[i] - cx, pts[i + 1] - cy));
-    return {pts, cx, cy, r, key: 'area:' + area.id, distance: index.distance(cx, cy, maxDistance)};
+  function projectFlat(flat) {
+    let pts = new Float64Array(flat.length);
+    for (let i = 0; i < flat.length; i += 2) {
+      let [x, y] = project(flat[i], flat[i + 1]);
+      pts[i] = x;
+      pts[i + 1] = y;
+    }
+    return pts;
   }
 
-  function toChunks(lines, type) {
+  function toArea(area) {
+    let pts = projectFlat(area.pts);
+    let cx = 0, cy = 0, n = pts.length / 2;
+    for (let i = 0; i < pts.length; i += 2) {
+      cx += pts[i];
+      cy += pts[i + 1];
+    }
+    cx /= n;
+    cy /= n;
+    let r = 0;
+    for (let i = 0; i < pts.length; i += 2) r = Math.max(r, Math.hypot(pts[i] - cx, pts[i + 1] - cy));
+    return {
+      pts, cx, cy, r,
+      height: area.height || 0,
+      minHeight: area.minHeight || 0,
+      cut: area.cut || null,
+      distance: index.distance(cx, cy, maxDistance)
+    };
+  }
+
+  function toChunks(lines, type, named) {
     let chunks = [];
-    for (let line of lines) {
+    lines.forEach((line, n) => {
       let width = ROAD_WIDTH[line.kind] || 1;
       // Streets are selected by name, so every piece of "Avenue d'Ostende" goes together.
-      let key = line.name ? type + ':' + line.name : type + ':way' + line.id;
+      let key = named && line.name ? type + ':' + line.name : type + ':way' + (line.id || n);
       let label = line.name || prettyKind(line.kind);
-      let projected = line.pts.map(([lon, lat]) => project(lon, lat));
-      let current = [projected[0]];
-      let length = 0;
-      for (let i = 1; i < projected.length; ++i) {
-        let p = projected[i];
-        let prev = projected[i - 1];
-        length += Math.hypot(p[0] - prev[0], p[1] - prev[1]);
-        current.push(p);
-        if (length > chunkLength && i < projected.length - 1) {
-          chunks.push(makeChunk(current, width, key, label));
-          current = [p];
+      let pts = projectFlat(line.pts);
+      let start = 0, length = 0;
+      for (let i = 2; i < pts.length; i += 2) {
+        length += Math.hypot(pts[i] - pts[i - 2], pts[i + 1] - pts[i - 1]);
+        if (length > chunkLength && i < pts.length - 2) {
+          chunks.push(makeChunk(pts.subarray(start, i + 2), width, key, label));
+          start = i;
           length = 0;
         }
       }
-      if (current.length > 1) chunks.push(makeChunk(current, width, key, label));
-    }
+      if (pts.length - start >= 4) chunks.push(makeChunk(pts.subarray(start), width, key, label));
+    });
     return chunks;
   }
 
-  function makeChunk(points, width, key, label) {
-    let pts = new Float64Array(points.length * 2);
+  function makeChunk(pts, width, key, label) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    points.forEach(([x, y], i) => {
-      pts[2 * i] = x;
-      pts[2 * i + 1] = y;
+    for (let i = 0; i < pts.length; i += 2) {
+      let x = pts[i], y = pts[i + 1];
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
-    });
+    }
     let cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
     return {
       pts, width, key, label, cx, cy,
@@ -170,6 +207,18 @@ export function prepareFeatures(features, prepared) {
       distance: index.distance(cx, cy, maxDistance)
     };
   }
+}
+
+// The same landmark can come from several tiles' buffers; keep one per name nearby.
+function dedupeLabels(labels) {
+  let seen = new Map();
+  return labels.filter(l => {
+    let key = l.name;
+    let other = seen.get(key);
+    if (other && Math.abs(other.lon - l.lon) < 0.01 && Math.abs(other.lat - l.lat) < 0.01) return false;
+    seen.set(key, l);
+    return true;
+  });
 }
 
 /**

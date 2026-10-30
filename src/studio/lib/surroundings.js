@@ -28,7 +28,8 @@ export function loadFeatures(key, bbox, progress) {
   let roads = detail === 'major'
     ? `way["highway"~"^(${MAJOR_ROADS})$"];`
     : `way["highway"]["highway"!~"^(${NEVER}${detail === 'roads' ? '|' + MINOR : ''})$"];`;
-  let buildings = detail === 'full' ? 'way["building"];' : '';
+  // Building parts carry the shapes of towers and monuments (each part with its own height).
+  let buildings = detail === 'full' ? 'way["building"]; way["building:part"];' : '';
   let small = detail === 'full' || detail === 'no-buildings';
   let timeout = area < 100 ? 60 : area < 1000 ? 120 : 180;
   let maxsize = area < 100 ? 256 * MB : area < 1000 ? 512 * MB : 1024 * MB;
@@ -64,8 +65,8 @@ function parseElements(elements) {
     let parts = splitGeometry(el.geometry);
     let closed = parts.length === 1 && isClosed(el.geometry);
     for (let pts of parts) {
-      if (tags.building) {
-        if (pts.length > 2) buildings.push({id: el.id, pts});
+      if (tags.building || tags['building:part']) {
+        if (pts.length > 2) buildings.push({id: el.id, pts, ...buildingHeight(tags)});
       } else if (tags.highway) {
         roads.push({id: el.id, kind: tags.highway, name: tags.name || tags.ref || '', pts});
       } else if (tags.railway) {
@@ -80,6 +81,24 @@ function parseElements(elements) {
     }
   }
   return {roads, rail, waterLines, waterAreas, parks, buildings};
+}
+
+/**
+ * Height in metres from OSM tags: `height`, else 3.2 m per level.
+ */
+function buildingHeight(tags) {
+  let levels = Number.parseFloat(tags['building:levels']);
+  let minLevel = Number.parseFloat(tags['building:min_level']);
+  let height = metres(tags.height) || (Number.isFinite(levels) ? levels * 3.2 : 0);
+  let minHeight = metres(tags.min_height) || (Number.isFinite(minLevel) ? minLevel * 3.2 : 0);
+  return {height, minHeight};
+}
+
+function metres(value) {
+  if (!value) return 0;
+  let n = Number.parseFloat(String(value).replace(',', '.'));
+  if (!Number.isFinite(n)) return 0;
+  return /ft|'/.test(value) ? n * 0.3048 : n;
 }
 
 function isClosed(geometry) {

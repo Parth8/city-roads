@@ -182,6 +182,19 @@ export default class SvgContext {
     this.parts.push(`<text x="${fmt(x + shift)}" y="${fmt(y)}"${transform} fill="${paint(s.fillStyle)}"${this.alphaAttr('fill-opacity')} font-family="${escapeXml(font.family)}" font-size="${fmt(font.size)}" font-weight="${font.weight}"${font.style ? ` font-style="${font.style}"` : ''} xml:space="preserve" text-anchor="${anchor}" dominant-baseline="${baseline}"${spacing ? ` letter-spacing="${fmt(spacing)}"` : ''}>${escapeXml(text)}</text>`);
   }
 
+  strokeText(text, x, y) {
+    // Drawn as text with a thick outline (used for halos around labels).
+    let fill = this.state.fillStyle, alpha = this.state.globalAlpha;
+    this.fillText(text, x, y);
+    let last = this.parts.pop();
+    let outline = last
+      .replace(/ fill="[^"]*"/, ' fill="none"')
+      .replace(/ fill-opacity="[^"]*"/, '')
+      .replace('<text ', `<text stroke="${paint(this.state.strokeStyle)}" stroke-width="${fmt(this.state.lineWidth)}" stroke-linejoin="round"${alpha < 1 ? ` stroke-opacity="${fmt(alpha)}"` : ''} `);
+    this.parts.push(outline);
+    this.state.fillStyle = fill;
+  }
+
   drawImage(image, x, y, w, h) {
     // Only self-contained images (data URLs) can be embedded.
     let href = image && (image.dataUrl || image.src);

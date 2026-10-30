@@ -69,17 +69,21 @@ function toDMS(value, positive, negative) {
  * A uniform grid over points, to answer "how far is the nearest point" quickly.
  */
 export function createPointIndex(points, cellSize) {
-  let cells = new Map();
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (let [x, y] of points) {
-    let key = cellKey(Math.floor(x / cellSize), Math.floor(y / cellSize));
-    let bucket = cells.get(key);
-    if (!bucket) cells.set(key, bucket = []);
-    bucket.push(x, y);
     if (x < minX) minX = x;
     if (x > maxX) maxX = x;
     if (y < minY) minY = y;
     if (y > maxY) maxY = y;
+  }
+  // Every point is inside this grid, so searches never look outside it.
+  let gx0 = Math.floor(minX / cellSize), gy0 = Math.floor(minY / cellSize);
+  let columns = Math.floor(maxX / cellSize) - gx0 + 1;
+  let rows = Math.floor(maxY / cellSize) - gy0 + 1;
+  let cells = new Array(columns * rows);
+  for (let [x, y] of points) {
+    let i = (Math.floor(y / cellSize) - gy0) * columns + Math.floor(x / cellSize) - gx0;
+    (cells[i] || (cells[i] = [])).push(x, y);
   }
 
   return {
@@ -93,49 +97,46 @@ export function createPointIndex(points, cellSize) {
       let boxDistance = Math.hypot(dx, dy);
       if (boxDistance >= maxDistance) return maxDistance;
 
-      let cx = Math.floor(x / cellSize);
-      let cy = Math.floor(y / cellSize);
+      let cx = Math.floor(x / cellSize) - gx0;
+      let cy = Math.floor(y / cellSize) - gy0;
       let best = maxDistance * maxDistance;
+      let scan = (i0, i1, j0, j1) => {
+        i0 = Math.max(i0, 0);
+        i1 = Math.min(i1, columns - 1);
+        j0 = Math.max(j0, 0);
+        j1 = Math.min(j1, rows - 1);
+        for (let j = j0; j <= j1; ++j) {
+          for (let i = i0; i <= i1; ++i) {
+            let bucket = cells[j * columns + i];
+            if (!bucket) continue;
+            for (let k = 0; k < bucket.length; k += 2) {
+              let ddx = bucket[k] - x, ddy = bucket[k + 1] - y;
+              let d = ddx * ddx + ddy * ddy;
+              if (d < best) best = d;
+            }
+          }
+        }
+      };
       // A cell r rings away can be as close as r cells diagonally.
       let firstRing = Math.max(0, Math.floor(boxDistance / (cellSize * Math.SQRT2)) - 1);
-      let lastRing = Math.ceil(maxDistance / cellSize) + 1;
+      let lastRing = Math.min(Math.ceil(maxDistance / cellSize) + 1, Math.max(columns, rows) + Math.max(Math.abs(cx), Math.abs(cy)));
       for (let ring = firstRing; ring <= lastRing; ++ring) {
         // Points in this ring are at least (ring - 1) cells away.
         let ringMin = (ring - 1) * cellSize;
         if (ring > 1 && ringMin * ringMin > best) break;
-        forEachCellInRing(cx, cy, ring, key => {
-          let bucket = cells.get(key);
-          if (!bucket) return;
-          for (let k = 0; k < bucket.length; k += 2) {
-            let ddx = bucket[k] - x, ddy = bucket[k + 1] - y;
-            let d = ddx * ddx + ddy * ddy;
-            if (d < best) best = d;
-          }
-        });
+        if (ring === 0) {
+          scan(cx, cx, cy, cy);
+          continue;
+        }
+        // The border of the square ring, clipped to the grid.
+        scan(cx - ring, cx + ring, cy - ring, cy - ring);
+        scan(cx - ring, cx + ring, cy + ring, cy + ring);
+        scan(cx - ring, cx - ring, cy - ring + 1, cy + ring - 1);
+        scan(cx + ring, cx + ring, cy - ring + 1, cy + ring - 1);
       }
       return Math.sqrt(best);
     }
   };
-}
-
-// Visits only the cells on the border of the square ring, not the whole square.
-function forEachCellInRing(cx, cy, ring, visit) {
-  if (ring === 0) {
-    visit(cellKey(cx, cy));
-    return;
-  }
-  for (let i = -ring; i <= ring; ++i) {
-    visit(cellKey(cx + i, cy - ring));
-    visit(cellKey(cx + i, cy + ring));
-  }
-  for (let j = -ring + 1; j <= ring - 1; ++j) {
-    visit(cellKey(cx - ring, cy + j));
-    visit(cellKey(cx + ring, cy + j));
-  }
-}
-
-function cellKey(x, y) {
-  return x + ':' + y;
 }
 
 /**

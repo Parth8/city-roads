@@ -16,6 +16,29 @@
   </section>
 
   <section class='card'>
+    <div class='card-head'>
+      <div>
+        <div class='card-title'>3D buildings</div>
+        <div class='card-text'>A bird's-eye view: buildings rise to their real mapped height.</div>
+      </div>
+      <toggle v-model='style.buildings3d' label='3D buildings'></toggle>
+    </div>
+    <template v-if='style.buildings3d'>
+      <scrubber v-model='style.extrude' label='Height' :min='0.2' :max='4' :step='0.05' unit='×'></scrubber>
+      <scrubber v-model='style.tilt' label='Tilt' :min='0' :max='1' :step='0.01' unit='percent'></scrubber>
+      <div class='row-between'>
+        <span>Light from</span>
+        <dial v-model='style.lightAngle' label='Light direction'></dial>
+      </div>
+      <paint-picker v-model='style.buildingColor' label='Roofs' :allow-none='true'></paint-picker>
+      <paint-picker v-model='style.buildingEdge' label='Outline' :allow-none='true' :allow-gradient='false'></paint-picker>
+      <p class='hint' v-if='style.buildings === "none" || !studio.layers.buildings'>
+        Buildings are hidden. <button type='button' class='link-button' @click='showBuildings'>Show them</button>
+      </p>
+    </template>
+  </section>
+
+  <section class='card'>
     <div class='card-title'>Emboss &amp; deboss</div>
     <div class='card-text'>A raised or pressed-in look, like letterpress. Try the same colour as the background.</div>
     <div v-for='t in reliefTargets' :key='t.key' class='relief-row'>
@@ -49,10 +72,11 @@ import Toggle from '../components/Toggle.vue';
 import Scrubber from '../components/Scrubber.vue';
 import Chips from '../components/Chips.vue';
 import PaintPicker from '../components/PaintPicker.vue';
+import Dial from '../components/Dial.vue';
 
 export default {
   name: 'EffectsPanel',
-  components: {Toggle, Scrubber, Chips, PaintPicker},
+  components: {Toggle, Scrubber, Chips, PaintPicker, Dial},
   inject: ['studio'],
   data() {
     return {
@@ -74,6 +98,10 @@ export default {
     }
   },
   methods: {
+    showBuildings() {
+      this.studio.layers.buildings = true;
+      if (this.style.buildings === 'none') this.style.buildings = 'fill';
+    },
     toggleGlow(on) {
       let base = this.studio.isTrack ? this.style.track : this.style.selection;
       this.style.glow = on ? this.studio.copyPaint(base) : null;

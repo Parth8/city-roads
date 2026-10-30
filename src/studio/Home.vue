@@ -38,7 +38,7 @@
   <section v-else class='content'>
     <form class='search' @submit.prevent='searchPlaces'>
       <icon name='search' :size='18'></icon>
-      <input type='search' v-model='placeQuery' placeholder='A city, a neighbourhood, an island…' aria-label='Search a place' ref='placeSearch'>
+      <input type='search' v-model='placeQuery' placeholder='A city, a park, a monument…' aria-label='Search a place' ref='placeSearch'>
       <button type='submit' class='search-button' :disabled='!placeQuery.trim() || searching'>{{searching ? 'Searching…' : 'Search'}}</button>
     </form>
     <div v-if='!places.length && !searching' class='ideas'>
@@ -89,7 +89,7 @@ export default {
       places: [],
       searching: false,
       placeError: null,
-      ideas: ['Manhattan', 'Paris', 'Shibuya', 'Venice', 'Amsterdam', 'San Francisco', 'Kyoto', 'Reykjavík'],
+      ideas: ['Central Park, New York', 'Tokyo Tower', 'Eiffel Tower', 'Colosseum', 'Sagrada Família', 'Manhattan', 'Shibuya', 'Venice', 'Amsterdam', 'Kyoto'],
       repoUrl: config.repoUrl
     };
   },
