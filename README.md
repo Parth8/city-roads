@@ -19,6 +19,11 @@ OpenStreetMap's, Google Fonts, and the original author's city cache.
 * **3D buildings:** a bird's-eye view where buildings rise to their real mapped height, with controls for
   height, tilt, light direction, roof colour and outlines. Search a monument ("Tokyo Tower", "Eiffel
   Tower", "Central Park") and it opens as a little 3D model with its landmarks named.
+* **Skyline view:** stand anywhere around your subject (on the street, on a rooftop, on a sky deck or in
+  the air) and look at it in true perspective, with the neighbouring buildings around you and haze
+  towards the horizon. Drag to walk around, drag up or down to rise, pinch or scroll to move closer;
+  set the lens, the tilt, the haze and the sky colour in **View**. The camera starts out looking along
+  the local street grid (down Manhattan's avenues, for example).
 * **Colours and gradients** for every part (background, track, streets, buildings, water, parks, title…),
   with 18 gradient palettes you can apply to one part or to everything.
 * **Effects:** neon glow, emboss and deboss (raised or pressed-in, like letterpress), fade with distance,

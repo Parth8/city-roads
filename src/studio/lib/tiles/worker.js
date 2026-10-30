@@ -1,8 +1,10 @@
 import {loadTiles} from './loadTiles.js';
+import {pack} from './pack.js';
 
 /**
  * Downloads and decodes tiles off the main thread, so the editor stays smooth
- * while a city loads. Geometry comes back as transferred Float64Arrays.
+ * while a city loads. Geometry comes back packed into a few transferred buffers
+ * (see pack.js).
  */
 let controller = null;
 
@@ -15,19 +17,9 @@ self.onmessage = async event => {
   controller = new AbortController();
   try {
     let result = await loadTiles(request, progress => self.postMessage({type: 'progress', progress}), controller.signal);
-    self.postMessage({type: 'done', result}, collectBuffers(result));
+    let packed = pack(result);
+    self.postMessage({type: 'done', result: packed.result}, packed.buffers);
   } catch (e) {
     self.postMessage({type: 'error', message: e.message, aborted: controller.signal.aborted});
   }
 };
-
-function collectBuffers(result) {
-  let buffers = [];
-  for (let key of ['roads', 'namedRoads', 'rail', 'waterLines', 'waterAreas', 'parks', 'buildings']) {
-    for (let f of result[key]) {
-      buffers.push(f.pts.buffer);
-      if (f.cut) buffers.push(f.cut.buffer);
-    }
-  }
-  return buffers;
-}

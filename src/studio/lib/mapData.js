@@ -1,5 +1,6 @@
 import {sources} from './tiles/sources.js';
 import {loadFeatures} from './surroundings.js';
+import {unpack} from './tiles/pack.js';
 
 /**
  * Gets map data for a box, as fast and as reliably as possible:
@@ -73,7 +74,7 @@ function viaTiles(source, bbox, detail, progress) {
       if (message.type === 'progress') notify(message.progress);
       else if (message.type === 'done') {
         finish();
-        resolve(message.result);
+        resolve(unpack(message.result));
       } else if (message.type === 'error') {
         finish();
         reject(message.aborted ? cancelled() : new Error(`${source.name}: ${message.message}`));

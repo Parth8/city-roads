@@ -1,6 +1,7 @@
 import {drawBorder} from '../../lib/artwork.js';
 import {toStyle, mainColor, mix} from './paint.js';
 import {drawBlurred} from './effects.js';
+import {drawScene} from './scene.js';
 
 /**
  * Draws a poster onto a 2D canvas context, or onto SvgContext which mimics one.
@@ -17,6 +18,8 @@ import {drawBlurred} from './effects.js';
  *   features,                prepareFeatures() or null while loading
  *   selection,               {keys: Set, mode: 'highlight'|'isolate', blur}
  *   flag, border             country flag image, border settings
+ *   camera                   {mode: 'map'|'skyline', ...}, see scene.js
+ *   sceneMinSize             skyline: skip features smaller than this (poster units)
  * }
  */
 export const POSTER_WIDTH = 1000;
@@ -284,6 +287,7 @@ function drawStatsRow(ctx, poster, stats, x0, top, width, scale = 1) {
 // ---------------------------------------------------------------- map
 
 function drawMap(ctx, poster, rect, box) {
+  if (poster.camera && poster.camera.mode === 'skyline') return drawSkyline(ctx, poster, rect, box);
   let {style, layers, subject, features, selection} = poster;
   let transform = createTransform(subject, rect, poster.view);
   let selected = selection && selection.keys && selection.keys.size ? selection.keys : null;
@@ -302,7 +306,7 @@ function drawMap(ctx, poster, rect, box) {
   }
 
   let fade = createFade(style.fade, subject.radius);
-  let env = {transform, rect, fade, box, style, layers};
+  let env = {transform, rect, fade, box, style, layers, unitsPerMetre: subject.unitsPerMetre};
   let notSelected = chunk => !selected || !selected.has(chunk.key);
 
   let drawContext = c => {
@@ -349,6 +353,26 @@ function drawMap(ctx, poster, rect, box) {
   ctx.restore();
 
   return {rect, transform};
+}
+
+/**
+ * The map through a camera (see scene.js). Selection effects belong to the
+ * flat map, so they are not drawn here.
+ */
+function drawSkyline(ctx, poster, rect, box) {
+  let {layers, features} = poster;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.w, rect.h);
+  ctx.clip();
+  let camera = drawScene(ctx, poster, rect, box, {minSize: poster.sceneMinSize, fast: poster.sceneMinSize > 1});
+  // From near the ground every label would sit on the horizon line.
+  if (layers.landmarks && features && features.labels.length && camera.ez > 60 * camera.k) {
+    drawLandmarks(ctx, poster, features.labels, camera.pointAt(30 * camera.k), rect, 7);
+  }
+  ctx.restore();
+  // Nothing on a flat map lines up with this view, so taps find nothing.
+  return {rect, transform: {scale: 1, x: () => NaN, y: () => NaN, angle: a => a}};
 }
 
 /**
@@ -526,7 +550,8 @@ function drawBuildings(ctx, buildings, env) {
 function drawBuildings3d(ctx, buildings, env) {
   if (!buildings || !buildings.length) return;
   let {transform, rect, fade, box, style} = env;
-  let lift = transform.scale * style.tilt * style.extrude; // poster units per metre of height
+  // Poster units per metre of height.
+  let lift = transform.scale * style.tilt * style.extrude * (env.unitsPerMetre || 1);
   let base = mainColor(style.buildingColor || style.streets);
   let light = (style.lightAngle || 0) * Math.PI / 180;
   let lx = Math.sin(light), ly = -Math.cos(light);
@@ -617,7 +642,7 @@ function drawBuildings3d(ctx, buildings, env) {
  */
 const MAX_LANDMARKS = 14;
 
-function drawLandmarks(ctx, poster, labels, transform, rect) {
+function drawLandmarks(ctx, poster, labels, transform, rect, limit = MAX_LANDMARKS) {
   let {style} = poster;
   let size = 13;
   let placed = [];
@@ -626,8 +651,9 @@ function drawLandmarks(ctx, poster, labels, transform, rect) {
   // A few well-spaced names read as a map; dozens read as noise.
   let gap = 14;
   for (let label of labels) {
-    if (placed.length >= MAX_LANDMARKS) break;
+    if (placed.length >= limit) break;
     let x = transform.x(label.x, label.y), y = transform.y(label.x, label.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
     let f = label.kind === 'water' ? waterFont : font;
     let width = measure(ctx, label.name, f);
     let box = {x: x - width / 2 - 4, y: y - size, w: width + 8, h: size + 6};

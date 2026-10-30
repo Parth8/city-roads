@@ -28,7 +28,9 @@ export default {
     step: {type: Number, default: 0.01},
     // How to show the value: 'percent', 'degrees', or a suffix such as 'px'.
     unit: {type: String, default: ''},
-    digits: {type: Number, default: null}
+    digits: {type: Number, default: null},
+    // Equal drags multiply the value, for ranges like 1.5 m to 3 km.
+    log: {type: Boolean, default: false}
   },
   emits: ['update:modelValue'],
   data() {
@@ -36,7 +38,7 @@ export default {
   },
   computed: {
     percent() {
-      return Math.max(0, Math.min(100, (this.modelValue - this.min) / (this.max - this.min) * 100));
+      return Math.max(0, Math.min(100, this.toT(this.modelValue) * 100));
     },
     rounded() {
       let digits = this.digits !== null ? this.digits : decimals(this.step);
@@ -70,7 +72,7 @@ export default {
         if (this.studio) this.studio.setInteracting(true);
       }
       let fine = e.shiftKey ? 0.2 : 1;
-      this.set(s.value + dx / s.width * (this.max - this.min) * fine);
+      this.set(this.fromT(this.toT(s.value) + dx / s.width * fine));
     },
     onUp(e) {
       let s = this.start;
@@ -89,7 +91,8 @@ export default {
       let delta = {ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1}[e.key];
       if (delta) {
         e.preventDefault();
-        this.set(this.modelValue + delta * this.step * (e.shiftKey ? 10 : 1));
+        if (this.log) this.set(this.modelValue * Math.pow(e.shiftKey ? 1.5 : 1.08, delta));
+        else this.set(this.modelValue + delta * this.step * (e.shiftKey ? 10 : 1));
       } else if (e.key === 'Enter') {
         this.editing = true;
         this.$nextTick(() => this.$refs.input && this.$refs.input.select());
@@ -101,6 +104,15 @@ export default {
       if (Number.isFinite(value)) this.set(value);
       this.editing = false;
       this.$el.focus();
+    },
+    // Value <-> position along the pill, 0 to 1.
+    toT(value) {
+      if (this.log) return Math.log(Math.max(value, this.min) / this.min) / Math.log(this.max / this.min);
+      return (value - this.min) / (this.max - this.min);
+    },
+    fromT(t) {
+      if (this.log) return this.min * Math.pow(this.max / this.min, t);
+      return this.min + t * (this.max - this.min);
     },
     set(value) {
       let snapped = Math.round(value / this.step) * this.step;

@@ -40,6 +40,7 @@ export function prepareTrack(track) {
     kind: 'track',
     origin,
     project,
+    unitsPerMetre: unitsPerMetre(origin),
     lines,
     pit,
     points,
@@ -67,6 +68,7 @@ export function preparePlace(place) {
     kind: 'place',
     origin,
     project,
+    unitsPerMetre: unitsPerMetre(origin),
     lines: [],
     pit: [],
     points,
@@ -93,6 +95,21 @@ export function placeBBox(bbox) {
   let target = Math.min(widthM, heightM) < 200 ? 600 : 1000;
   return padBBox(bbox, 0, Math.max(0, (target - Math.min(widthM, heightM)) / 2));
 }
+
+// Web Mercator stretches distances by 1 / cos(latitude); heights are real metres.
+function unitsPerMetre(origin) {
+  return 1 / Math.cos(origin[1] * Math.PI / 180);
+}
+
+/**
+ * A wide square around the subject for the skyline view, so the camera has
+ * buildings between it and the subject, and behind it.
+ */
+export function sceneBBox(subject) {
+  return padBBox(subject.kind === 'place' ? placeBBox(subject.bbox) : subject.bbox, 0, SCENE_MARGIN);
+}
+
+export const SCENE_MARGIN = 3200;
 
 /**
  * The area we download streets for. Generous around tracks, so the map can be

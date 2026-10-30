@@ -7,6 +7,7 @@
 // Simple line icons (24x24). Paths are static strings defined here, never user input.
 const ICONS = {
   looks: '<path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8z"/><path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9z"/><path d="M5 15l.6 1.4L7 17l-1.4.6L5 19l-.6-1.4L3 17l1.4-.6z"/>',
+  view: '<path d="M3 20l5-9 4 5 3-4 6 8z"/><path d="M8 11V5M8 5h4l-1 2h-3"/>',
   size: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
   layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17.5l9 5 9-5" opacity=".5"/>',
   colours: '<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="9" r="1.4" fill="currentColor"/><circle cx="13" cy="7.5" r="1.4" fill="currentColor"/><circle cx="16.5" cy="11" r="1.4" fill="currentColor"/><path d="M12 21c-1.5 0-2-1.2-1.5-2.3.6-1.2-.3-2.7-1.8-2.7H7"/>',

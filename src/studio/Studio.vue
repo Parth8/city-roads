@@ -65,11 +65,12 @@
       </button>
       <span class='dock-divider'></span>
       <button type='button' class='dock-button' @click='zoomBy(1 / 1.25)' aria-label='Zoom out'><icon name='minus'></icon></button>
-      <button type='button' class='zoom-label' @click='resetView' title='Reset view'>{{Math.round(view.zoom * 100)}}%</button>
+      <button type='button' class='zoom-label' @click='resetView' title='Reset view'>{{zoomLabel}}</button>
       <button type='button' class='dock-button' @click='zoomBy(1.25)' aria-label='Zoom in'><icon name='plus'></icon></button>
       <span class='dock-divider'></span>
-      <dial v-model='view.rotation' :size='40'></dial>
-      <button type='button' class='dock-button' @click='autoRotate' title='Rotate to fill the frame'><icon name='fit'></icon></button>
+      <dial v-if='isSkyline' :model-value='camera.bearing || 0' @update:model-value='camera.bearing = $event' :size='40' label='Facing'></dial>
+      <dial v-else v-model='view.rotation' :size='40'></dial>
+      <button v-if='!isSkyline' type='button' class='dock-button' @click='autoRotate' title='Rotate to fill the frame'><icon name='fit'></icon></button>
     </div>
 
     <transition name='pop'>
@@ -85,10 +86,10 @@ import {getTrackMeta, loadTrack, loadFlag} from './lib/catalog.js';
 import {presets, presetStyle, getPreset} from './lib/presets.js';
 import {loadFonts} from './lib/fonts.js';
 import {getOutput, defaultOutput, getCategory} from './lib/outputs.js';
-import {prepareTrack, preparePlace, prepareFeatures, featuresBBox, bestRotation} from './lib/geometry.js';
+import {prepareTrack, preparePlace, prepareFeatures, featuresBBox, sceneBBox, SCENE_MARGIN, bestRotation} from './lib/geometry.js';
+import {CAMERA_DEFAULTS, autoDistance, gridBearing} from './lib/scene.js';
 import {loadMapData} from './lib/mapData.js';
-import {bboxAreaKm2} from './lib/geo.js';
-import {formatDMS, bboxCenter} from './lib/geo.js';
+import {bboxAreaKm2, formatDMS, bboxCenter} from './lib/geo.js';
 import {gradientPalettes, clonePaint} from './lib/paint.js';
 import renderPoster, {POSTER_WIDTH} from './lib/render.js';
 import {posterToImage, posterToSvg} from './lib/exportPoster.js';
@@ -100,6 +101,7 @@ import urlState from './lib/urlState.js';
 import Icon from './components/Icon.vue';
 import Dial from './components/Dial.vue';
 import LooksPanel from './panels/LooksPanel.vue';
+import ViewPanel from './panels/ViewPanel.vue';
 import SizePanel from './panels/SizePanel.vue';
 import LayersPanel from './panels/LayersPanel.vue';
 import ColoursPanel from './panels/ColoursPanel.vue';
@@ -117,9 +119,12 @@ export const DEFAULT_LAYERS = {
 // Layers a preset may switch on or off; the rest are left as the user set them.
 const PRESET_LAYERS = ['north', 'flag', 'corners', 'parks'];
 const STORAGE_PREFIX = 'studio:v1:';
+// How far the camera may stand from the subject: inside the area downloaded for the skyline.
+const SCENE_REACH = SCENE_MARGIN * 0.9;
 
 const TOOLS = [
   {id: 'looks', name: 'Looks', icon: 'looks', component: LooksPanel},
+  {id: 'view', name: 'View', icon: 'view', component: ViewPanel},
   {id: 'size', name: 'Size', icon: 'size', component: SizePanel},
   {id: 'layers', name: 'Layers', icon: 'layers', component: LayersPanel},
   {id: 'colours', name: 'Colours', icon: 'colours', component: ColoursPanel},
@@ -175,6 +180,7 @@ export default {
       uppercase: true,
       labelPosition: 'corner',
       view: {rotation: 0, zoom: 1, panX: 0, panY: 0},
+      camera: {...CAMERA_DEFAULTS},
       outputSettings: JSON.parse(JSON.stringify(defaultOutput)),
       border: {style: 'none', color: '#ffffff', size: 0.045, caption: '', captionColor: '#2b2b2b'},
       selection: {items: [], mode: 'highlight', blur: 0},
@@ -216,6 +222,17 @@ export default {
     isTrack() {
       return this.subjectRef.kind === 'track';
     },
+    isSkyline() {
+      return this.camera.mode === 'skyline';
+    },
+    zoomLabel() {
+      if (!this.isSkyline) return Math.round(this.view.zoom * 100) + '%';
+      let d = this.cameraDistance;
+      return d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m';
+    },
+    cameraDistance() {
+      return this.camera.distance || (this.prepared && this.trackLoaded ? autoDistance(this.prepared) : 1000);
+    },
     streetsStatus() {
       if (this.loadingStreets) return this.streetsStatusText;
       if (this.streetsError) {
@@ -237,6 +254,8 @@ export default {
         layers.stats = false;
       }
       if (!this.flag) layers.flag = false;
+      // North changes with the camera; an arrow would mislead.
+      if (this.isSkyline) layers.north = false;
       return layers;
     },
     snapshot() {
@@ -244,7 +263,7 @@ export default {
       return JSON.stringify({
         presetId: this.presetId, style: this.style, layers: this.layers, text: this.text, uppercase: this.uppercase,
         labelPosition: this.labelPosition, view: this.view, outputSettings: this.outputSettings, border: this.border,
-        selection: this.selection, taglineEdited: this.taglineEdited, dataMode: this.dataMode
+        selection: this.selection, taglineEdited: this.taglineEdited, dataMode: this.dataMode, camera: this.camera
       });
     }
   },
@@ -272,6 +291,10 @@ export default {
       handler() {
         if (!this.taglineEdited && this.isTrack) this.text.tagline = taglineFrom(this.text.stats);
       }
+    },
+    'camera.mode'() {
+      // The skyline needs streets and buildings much further out.
+      if (this.prepared) this.loadStreets();
     },
     panel(panel) {
       if (panel === 'select') this.setSelectMode(true);
@@ -358,9 +381,11 @@ export default {
       });
       this.progress = progress;
       this.streetsStatusText = 'Loading streets, water and buildings…';
-      let bbox = featuresBBox({kind: this.subjectRef.kind, bbox: this.subjectBBox});
+      let subject = {kind: this.subjectRef.kind, bbox: this.subjectBBox};
+      let wide = this.isSkyline;
+      let bbox = wide ? sceneBBox(subject) : featuresBBox(subject);
       let started = performance.now();
-      loadMapData({key: this.subjectKey(), bbox, mode: this.dataMode}, progress).then(raw => {
+      loadMapData({key: this.subjectKey() + (wide ? '|wide' : ''), bbox, mode: this.dataMode}, progress).then(raw => {
         if (progress.isCancelled) return;
         this.features = markRaw(prepareFeatures(raw, this.prepared));
         this.streetNames = markRaw(this.features.streetNames);
@@ -368,6 +393,7 @@ export default {
         this.dataSource = `${sourceName(raw.source)} · ${((performance.now() - started) / 1000).toFixed(1)} s` + (raw.zoom ? ` · zoom ${raw.zoom}, ${raw.tiles} tiles` : '');
         this.streetsLoaded = true;
         this.loadingStreets = false;
+        if (this.camera.bearing === null) this.camera.bearing = Math.round(gridBearing(this.features, this.prepared));
         this.scheduleRender();
       }).catch(e => {
         if (e && e.cancelled) return;
@@ -476,6 +502,7 @@ export default {
         this.style = {...presetStyle(this.presetId), ...state.style};
         this.layers = {...DEFAULT_LAYERS, ...state.layers};
         this.text = {...this.text, ...state.text};
+        if (state.camera) Object.assign(this.camera, state.camera);
         ['uppercase', 'labelPosition', 'taglineEdited', 'dataMode'].forEach(k => {
           if (k in state) this[k] = state[k];
         });
@@ -559,7 +586,27 @@ export default {
     },
 
     resetView() {
-      Object.assign(this.view, {rotation: 0, zoom: 1, panX: 0, panY: 0});
+      if (this.isSkyline) Object.assign(this.camera, {distance: 0, horizon: 0});
+      else Object.assign(this.view, {rotation: 0, zoom: 1, panX: 0, panY: 0});
+    },
+
+    setCameraMode(mode) {
+      if (mode === 'skyline') {
+        this.camera.mode = 'skyline';
+        if (this.features && this.camera.bearing === null) this.camera.bearing = Math.round(gridBearing(this.features, this.prepared));
+      } else {
+        this.camera.mode = 'map';
+        this.style.buildings3d = mode === '3d';
+      }
+    },
+
+    // Skyline: move the camera closer to (factor > 1) or further from the subject.
+    dolly(factor) {
+      this.camera.distance = Math.round(Math.max(150, Math.min(SCENE_REACH, this.cameraDistance / factor)));
+    },
+
+    turnCamera(degrees) {
+      this.camera.bearing = normalizeAngle((this.camera.bearing || 0) + degrees);
     },
 
     zoomBy(factor) {
@@ -569,6 +616,7 @@ export default {
     },
 
     zoomAround(p, factor) {
+      if (this.isSkyline) return this.dolly(factor);
       let rect = this.lastMap.rect;
       let zoom = Math.max(0.2, Math.min(12, this.view.zoom * factor));
       factor = zoom / this.view.zoom;
@@ -637,6 +685,8 @@ export default {
         selection: {keys: new Set(this.selection.items.map(x => x.key)), mode: this.selection.mode, blur: this.selection.blur},
         flag: this.flag,
         border: {...this.border, caption: this.border.caption || this.text.title},
+        camera: this.camera,
+        sceneMinSize: this.interacting ? 2 : 0.2,
         ...overrides
       };
     },
@@ -654,7 +704,7 @@ export default {
       applyPresetLayers(layers, presetId);
       if (!this.flag) layers.flag = false;
       if (!this.isTrack) layers.track = layers.start = layers.corners = layers.pit = false;
-      renderPoster(ctx, this.getPoster({style, layers, layout: style.layout, height: canvas.height / scale, border: {style: 'none'}, selection: {keys: new Set()}}));
+      renderPoster(ctx, this.getPoster({style, layers, layout: style.layout, height: canvas.height / scale, border: {style: 'none'}, selection: {keys: new Set()}, sceneMinSize: 4}));
       return true;
     },
 
@@ -714,7 +764,12 @@ export default {
       let p = this.toPoster(e);
       let rect = this.lastMap.rect;
       if (this.tap && Math.hypot(e.clientX - this.tap.x, e.clientY - this.tap.y) > 6) this.tap = null;
-      if (this.pointers.size === 1) {
+      if (this.pointers.size === 1 && this.isSkyline) {
+        // Drag sideways to walk around the subject, up and down to rise and sink.
+        let last = this.pointers.get(e.pointerId);
+        this.turnCamera(-(p.x - last.x) / rect.w * 120);
+        this.camera.height = Math.round(Math.max(1.5, Math.min(3000, this.camera.height * Math.exp(-(p.y - last.y) / rect.h * 2.2))) * 10) / 10;
+      } else if (this.pointers.size === 1) {
         let last = this.pointers.get(e.pointerId);
         this.view.panX += (p.x - last.x) / rect.w;
         this.view.panY += (p.y - last.y) / rect.h;
@@ -729,7 +784,8 @@ export default {
         let turn = Math.atan2(p.y - other.y, p.x - other.x) - Math.atan2(last.y - other.y, last.x - other.x);
         if (turn > Math.PI) turn -= 2 * Math.PI;
         if (turn < -Math.PI) turn += 2 * Math.PI;
-        this.view.rotation = normalizeAngle(this.view.rotation - turn * 180 / Math.PI);
+        if (this.isSkyline) this.turnCamera(turn * 180 / Math.PI);
+        else this.view.rotation = normalizeAngle(this.view.rotation - turn * 180 / Math.PI);
       }
       this.pointers.set(e.pointerId, p);
     },
@@ -746,6 +802,10 @@ export default {
 
     selectAt(point) {
       if (!this.lastMap) return;
+      if (this.isSkyline) {
+        this.showToast('Streets are selected on the map. View › Map to switch back.');
+        return;
+      }
       // About 14 screen pixels, in poster units.
       let tolerance = 14 * POSTER_WIDTH / this.$refs.canvas.getBoundingClientRect().width;
       let hit = hitTest(this.prepared, this.features, this.lastMap, point, tolerance);
@@ -764,7 +824,8 @@ export default {
       e.preventDefault();
       if (e.shiftKey || e.altKey) {
         // Shift/Alt + scroll rotates.
-        this.view.rotation = normalizeAngle(this.view.rotation + (e.deltaY || e.deltaX) * 0.15);
+        if (this.isSkyline) this.turnCamera((e.deltaY || e.deltaX) * 0.15);
+        else this.view.rotation = normalizeAngle(this.view.rotation + (e.deltaY || e.deltaX) * 0.15);
       } else {
         this.zoomAround(p, Math.exp(-e.deltaY * 0.0015));
       }
