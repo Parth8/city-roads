@@ -44,3 +44,8 @@ A press-and-hold "crack the can" intro plays once per session.
 `processPayment()` in `js/checkout.js` is the integration point. Create an order on your server, then open
 Razorpay, Cashfree or Stripe checkout there. The UPI QR is a decorative placeholder until then.
 Health copy is phrased as traditional use. Have it checked against FSSAI advertising rules before launch.
+
+## Preview
+
+![Desktop](preview/desktop.png)
+![Mobile](preview/mobile.png)
